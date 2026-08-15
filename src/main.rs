@@ -9,14 +9,12 @@ macro_rules! func {
     }};
 }
 
-macro_rules! expr1 {
-    ($s:expr, $e:expr) => {{ $s.ensure('(').and_then(|_| $e).and_then(|_| $s.ensure(')')) }};
-}
 fn main() {
     let source = "pdiv(81.34,x(0)*pdiv(x(3),psqrt(np.exp(np.sin(x(0)))*x(3))))*np.sin(88.10)";
 
     let mut scanner = Scanner::new(source);
-    println!("{:?}", scanner.expr())
+    println!("{:?}", scanner.scan());
+    println!("{:?}", scanner.instructions)
 }
 
 #[derive(Debug)]
@@ -33,14 +31,17 @@ enum ExpressionError {
 #[derive(Debug, PartialEq)]
 enum OpCode {
     Pdiv,
+    Mult,
+    Add,
+    Sub,
     Read(u32),
+    Const(f64),
 }
 
 struct Scanner<'a> {
     source: Chars<'a>,
     buffer: String,
     instructions: Vec<OpCode>,
-    stack: Vec<f64>,
     c: char,
 }
 
@@ -50,109 +51,102 @@ impl<'a> Scanner<'a> {
             source: source.chars(),
             buffer: String::new(),
             instructions: Vec::new(),
-            stack: Vec::new(),
             c: char::MIN,
         }
     }
 
-    pub fn expr(&mut self) -> Result<(), ExpressionError> {
+    pub fn scan(&mut self) -> Result<(), ExpressionError> {
+        if self.c == char::MIN {
+            if !self.next() {
+                return Err(UnexpectedEof);
+            }
+        }
+
+        self.expr().and_then(|_| {
+            if self.c == char::MIN {
+                Ok(())
+            } else {
+                self.expr()
+            }
+        })
+    }
+
+    fn expr(&mut self) -> Result<(), ExpressionError> {
+        println!("expr:{}", self.c);
+        if self.is_alpha() {
+            self.fill_buffer();
+        }
+        println!("buffer: '{}' - current: '{}'", self.buffer, self.c);
+
+        match self.c {
+            '*' => self.operator(OpCode::Mult),
+            '+' => self.operator(OpCode::Add),
+            '-' => self.operator(OpCode::Sub),
+            _ => self.factor(),
+        }
+    }
+
+    fn operator(&mut self, op_code: OpCode) -> Result<(), ExpressionError> {
+        println!("operator {:?} - {}", op_code, self.buffer);
+        self.instructions.push(op_code);
+        self.factor().and_then(|_| self.expr())
+    }
+
+    fn move_or_eof(&mut self) -> Result<(), ExpressionError> {
+        println!("moeof: {}", self.c);
         if self.next() {
-            if self.is_alpha() {
-                self.fill_buffer();
-            }
-            // println!("buffer: '{}' - current: '{}'", self.buffer, self.c);
-
-            if let Err(e) = match self.buffer.as_str() {
-                "pdiv" => func!(
-                    self,
-                    OpCode::Pdiv,
-                    self.ensure('(')
-                        .and_then(|_| self.expr())
-                        .and_then(|_| self.ensure(','))
-                        .and_then(|_| self.expr())
-                        .and_then(|_| self.ensure(')'))
-                ),
-                "x" => {
-                    self.buffer.clear();
-                    self.ensure('(')
-                        .and_then(|_| {
-                            while self.next() && self.is_digits() {
-                                self.buffer.push(self.c);
-                            }
-
-                            match self.buffer.parse::<u32>() {
-                                Ok(e) => {
-                                    self.instructions.push(OpCode::Read(e));
-                                    Ok(())
-                                }
-                                Err(_) => Err(InvalidTerm(self.buffer.clone())),
-                            }
-                        })
-                        .and_then(|_| self.ensure(')'))
-                }
-                e => match e.parse::<f64>() {
-                    Ok(v) => {
-                        self.stack.push(v);
-                        self.buffer.clear();
-                        Ok(())
-                    }
-                    Err(_) => Err(InvalidTerm(self.buffer.clone())),
-                },
-            } {
-                return Err(e);
-            }
-            Ok(())
+            self.expr()
         } else {
             Err(UnexpectedEof)
         }
+    }
 
-        // while let Some(c) = self.source.next() {
-        //     if c.is_whitespace() {
-        //         continue;
-        //     }
+    fn factor(&mut self) -> Result<(), ExpressionError> {
+        println!("sf: {} - buf:{}", self.c, self.buffer);
+        if let Err(e) = match self.buffer.as_str() {
+            "pdiv" => func!(
+                self,
+                OpCode::Pdiv,
+                self.consume('(')
+                    .and_then(|_| self.expr())
+                    .and_then(|_| self.consume(','))
+                    .and_then(|_| self.expr())
+                    .and_then(|_| self.consume(')'))
+            ),
+            "x" => {
+                self.buffer.clear();
+                self.consume('(')
+                    .and_then(|_| {
+                        self.buffer.push(self.c);
+                        while self.next() && self.is_digits() {
+                            self.buffer.push(self.c);
+                        }
 
-        //     // can be func name,
-        //     if c.is_ascii_lowercase()
-        //         || c.is_ascii_uppercase()
-        //         || c.is_ascii_digit()
-        //         || c == '.'
-        //         || c == '_'
-        //     {
-        //         self.buffer.push(c);
-        //         continue;
-        //     }
+                        match self.buffer.parse::<u32>() {
+                            Ok(e) => {
+                                self.instructions.push(OpCode::Read(e));
+                                self.buffer.clear();
+                                Ok(())
+                            }
+                            Err(_) => Err(InvalidTerm(self.buffer.clone())),
+                        }
+                    })
+                    .and_then(|_| self.consume(')'))
+            }
+            e => match e.parse::<f64>() {
+                Ok(v) => {
+                    self.instructions.push(OpCode::Const(v));
+                    self.buffer.clear();
+                    Ok(())
+                }
+                Err(_) => Err(InvalidTerm(self.buffer.clone())),
+            },
+        } {
+            return Err(e);
+        }
 
-        //     println!("{}", self.buffer);
-        //     println!("{}", c);
-
-        //     if let Err(e) = match self.buffer.as_str() {
-        //         "pdiv" => {
-        //             self.instructions.push(OpCode::Pdiv);
-        //             self.ensure(c, '(')
-        //                 .and_then(|_| self.expr())
-        //                 .and_then(|_| self.ensure(c, ','))
-        //                 .and_then(|_| self.expr())
-        //                 .and_then(|_| self.ensure(c, ')'))
-        //         }
-        //         "x" => {
-        //             self.instructions.push(OpCode::Read);
-        //             self.ensure(c, '(')
-        //                 .and_then(|_| self.expr())
-        //                 .and_then(|_| self.ensure(c, ')'))
-        //         }
-        //         e => match e.parse::<f64>() {
-        //             Ok(v) => {
-        //                 self.stack.push(v);
-        //                 Ok(())
-        //             }
-        //             Err(_) => Err(InvalidTerm(self.buffer.clone())),
-        //         },
-        //     } {
-        //         return Err(e);
-        //     }
-
-        //     self.buffer.clear();
-        // }
+        println!("ef: {} - buf:{}", self.c, self.buffer);
+        Ok(())
     }
 
     fn fill_buffer(&mut self) {
@@ -175,6 +169,7 @@ impl<'a> Scanner<'a> {
     }
 
     fn next(&mut self) -> bool {
+        println!("moving...");
         while let Some(c) = self.source.next() {
             if c.is_whitespace() {
                 continue;
@@ -184,11 +179,13 @@ impl<'a> Scanner<'a> {
             return true;
         }
 
+        self.c = char::MIN;
         return false;
     }
 
-    fn ensure(&mut self, expected: char) -> Result<(), ExpressionError> {
+    fn consume(&mut self, expected: char) -> Result<(), ExpressionError> {
         if self.c == expected {
+            self.next();
             // println!("Ensure '{}' - GOOD", expected);
             Ok(())
         } else {
@@ -209,23 +206,26 @@ mod tests {
     #[test]
     fn test_empty_source_code() {
         let mut scanner = Scanner::new("");
-        assert!(matches!(scanner.expr(), Err(UnexpectedEof)));
+        assert!(matches!(scanner.scan(), Err(UnexpectedEof)));
     }
 
     #[test]
     fn test_whitespace_source_code() {
         let mut scanner = Scanner::new("   \n\n\t");
-        assert!(matches!(scanner.expr(), Err(UnexpectedEof)));
+        assert!(matches!(scanner.scan(), Err(UnexpectedEof)));
     }
 
     #[test]
     fn test_div_simple() {
         let mut scanner = Scanner::new("pdiv(12, 3)");
 
-        match scanner.expr() {
+        match scanner.scan() {
             Ok(()) => {
-                assert_eq!(scanner.instructions, vec![OpCode::Pdiv]);
-                assert_eq!(scanner.stack, vec![12., 3.]);
+                assert_eq!(
+                    scanner.instructions,
+                    vec![OpCode::Pdiv, OpCode::Const(12.), OpCode::Const(3.)]
+                );
+                assert_eq!(scanner.c, ')')
             }
             Err(e) => panic!("{:?}", e),
         }
@@ -235,10 +235,9 @@ mod tests {
     fn test_x_simple() {
         let mut scanner = Scanner::new("x(12)");
 
-        match scanner.expr() {
+        match scanner.scan() {
             Ok(()) => {
                 assert_eq!(scanner.instructions, vec![OpCode::Read(12)]);
-                assert!(scanner.stack.is_empty());
                 assert_eq!(scanner.c, ')');
             }
             Err(e) => panic!("{:?}", e),
@@ -246,14 +245,22 @@ mod tests {
     }
 
     #[test]
-    fn test_pdiv_comples() {
+    fn test_pdiv_complex() {
         let mut scanner = Scanner::new("pdiv(pdiv(12,3), pdiv(3,56))");
 
-        match scanner.expr() {
+        match scanner.scan() {
             Ok(()) => {
                 assert_eq!(
                     scanner.instructions,
-                    vec![OpCode::Pdiv, OpCode::Pdiv, OpCode::Pdiv]
+                    vec![
+                        OpCode::Pdiv,
+                        OpCode::Pdiv,
+                        OpCode::Const(12.),
+                        OpCode::Const(3.),
+                        OpCode::Pdiv,
+                        OpCode::Const(3.),
+                        OpCode::Const(56.)
+                    ]
                 );
                 // assert!(scanner.stack.is_empty());
             }
@@ -265,27 +272,90 @@ mod tests {
     fn test_pdiv_x() {
         let mut scanner = Scanner::new("pdiv(x(12), x(45))");
 
-        match scanner.expr() {
+        match scanner.scan() {
             Ok(()) => {
                 assert_eq!(
                     scanner.instructions,
                     vec![OpCode::Pdiv, OpCode::Read(12), OpCode::Read(45)]
                 );
-                assert!(scanner.stack.is_empty());
             }
             Err(e) => panic!("{:?}", e),
         }
     }
 
-    // #[test]
-    // fn test_invalid_char() {
-    //     let mut scanner = Scanner::new("pdiv 12, 3)");
-    //     assert!(matches!(scanner.expr(), Err(ExpressionError::InvalidChar { .. })));
-    // }
+    #[test]
+    fn test_binary() {
+        let mut scanner = Scanner::new("10 * 12");
 
-    // #[test]
-    // fn test_invalid_term() {
-    //     let mut scanner = Scanner::new("abc");
-    //     assert!(matches!(scanner.expr(), Err(ExpressionError::InvalidTerm(_))));
-    // }
+        match scanner.scan() {
+            Ok(()) => {
+                assert_eq!(
+                    scanner.instructions,
+                    vec![OpCode::Mult, OpCode::Const(10.), OpCode::Const(12.)]
+                );
+            }
+            Err(e) => panic!("{:?}", e),
+        }
+    }
+
+    #[test]
+    fn test_binary_2() {
+        let mut scanner = Scanner::new("10 * 12 + 15");
+
+        match scanner.scan() {
+            Ok(()) => {
+                assert_eq!(
+                    scanner.instructions,
+                    vec![
+                        OpCode::Mult,
+                        OpCode::Const(10.),
+                        OpCode::Add,
+                        OpCode::Const(12.),
+                        OpCode::Const(15.)
+                    ]
+                );
+            }
+            Err(e) => panic!("{:?}", e),
+        }
+    }
+
+    #[test]
+    fn test_binary_with_func() {
+        let mut scanner = Scanner::new("x(3) - 2.4");
+
+        match scanner.scan() {
+            Ok(()) => {
+                assert_eq!(
+                    scanner.instructions,
+                    vec![OpCode::Sub, OpCode::Read(3), OpCode::Const(2.4)]
+                );
+            }
+            Err(e) => panic!("{:?}", e),
+        }
+    }
+
+    #[test]
+    fn test_binary_with_func_complex() {
+        let mut scanner = Scanner::new("10 * 12 + x(3) - pdiv(x(3), 90.45)");
+
+        match scanner.scan() {
+            Ok(()) => {
+                assert_eq!(
+                    scanner.instructions,
+                    vec![
+                        OpCode::Mult,
+                        OpCode::Const(10.),
+                        OpCode::Add,
+                        OpCode::Const(12.),
+                        OpCode::Sub,
+                        OpCode::Read(3),
+                        OpCode::Pdiv,
+                        OpCode::Read(3),
+                        OpCode::Const(90.45)
+                    ]
+                );
+            }
+            Err(e) => panic!("{:?}", e),
+        }
+    }
 }
