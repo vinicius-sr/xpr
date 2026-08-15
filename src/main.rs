@@ -1,7 +1,17 @@
 use std::str::Chars;
 
 use self::ExpressionError::{InvalidChar, InvalidTerm, UnexpectedEof};
+macro_rules! func {
+    ($self:expr, $op:expr, $chain:expr) => {{
+        $self.instructions.push($op);
+        $self.buffer.clear();
+        $chain
+    }};
+}
 
+macro_rules! expr1 {
+    ($s:expr, $e:expr) => {{ $s.ensure('(').and_then(|_| $e).and_then(|_| $s.ensure(')')) }};
+}
 fn main() {
     let source = "pdiv(81.34,x(0)*pdiv(x(3),psqrt(np.exp(np.sin(x(0)))*x(3))))*np.sin(88.10)";
 
@@ -53,21 +63,33 @@ impl<'a> Scanner<'a> {
             // println!("buffer: '{}' - current: '{}'", self.buffer, self.c);
 
             if let Err(e) = match self.buffer.as_str() {
-                "pdiv" => {
-                    self.instructions.push(OpCode::Pdiv);
-                    self.buffer.clear();
+                "pdiv" => func!(
+                    self,
+                    OpCode::Pdiv,
                     self.ensure('(')
                         .and_then(|_| self.expr())
                         .and_then(|_| self.ensure(','))
                         .and_then(|_| self.expr())
                         .and_then(|_| self.ensure(')'))
+                ),
+                "x" => {
+                    self.buffer.clear();
+                    self.ensure('(')
+                        .and_then(|_| {
+                            while self.next() && self.is_digits() {
+                                self.buffer.push(self.c);
+                            }
+
+                            match self.buffer.parse::<u32>() {
+                                Ok(e) => {
+                                    self.instructions.push(OpCode::Read(e));
+                                    Ok(())
+                                }
+                                Err(_) => Err(InvalidTerm(self.buffer.clone())),
+                            }
+                        })
+                        .and_then(|_| self.ensure(')'))
                 }
-                // "x" => {
-                //     self.instructions.push(OpCode::Read);
-                //     self.ensure( '(')
-                //         .and_then(|_| self.expr())
-                //         .and_then(|_| self.ensure( ')'))
-                // }
                 e => match e.parse::<f64>() {
                     Ok(v) => {
                         self.stack.push(v);
@@ -148,6 +170,10 @@ impl<'a> Scanner<'a> {
             || self.c == '_'
     }
 
+    fn is_digits(&self) -> bool {
+        self.c.is_ascii_digit()
+    }
+
     fn next(&mut self) -> bool {
         while let Some(c) = self.source.next() {
             if c.is_whitespace() {
@@ -177,9 +203,8 @@ impl<'a> Scanner<'a> {
 
 #[cfg(test)]
 mod tests {
+    use super::Scanner;
     use crate::{ExpressionError::UnexpectedEof, OpCode};
-
-    use super::{ExpressionError, Scanner};
 
     #[test]
     fn test_empty_source_code() {
@@ -201,6 +226,52 @@ mod tests {
             Ok(()) => {
                 assert_eq!(scanner.instructions, vec![OpCode::Pdiv]);
                 assert_eq!(scanner.stack, vec![12., 3.]);
+            }
+            Err(e) => panic!("{:?}", e),
+        }
+    }
+
+    #[test]
+    fn test_x_simple() {
+        let mut scanner = Scanner::new("x(12)");
+
+        match scanner.expr() {
+            Ok(()) => {
+                assert_eq!(scanner.instructions, vec![OpCode::Read(12)]);
+                assert!(scanner.stack.is_empty());
+                assert_eq!(scanner.c, ')');
+            }
+            Err(e) => panic!("{:?}", e),
+        }
+    }
+
+    #[test]
+    fn test_pdiv_comples() {
+        let mut scanner = Scanner::new("pdiv(pdiv(12,3), pdiv(3,56))");
+
+        match scanner.expr() {
+            Ok(()) => {
+                assert_eq!(
+                    scanner.instructions,
+                    vec![OpCode::Pdiv, OpCode::Pdiv, OpCode::Pdiv]
+                );
+                // assert!(scanner.stack.is_empty());
+            }
+            Err(e) => panic!("{:?}", e),
+        }
+    }
+
+    #[test]
+    fn test_pdiv_x() {
+        let mut scanner = Scanner::new("pdiv(x(12), x(45))");
+
+        match scanner.expr() {
+            Ok(()) => {
+                assert_eq!(
+                    scanner.instructions,
+                    vec![OpCode::Pdiv, OpCode::Read(12), OpCode::Read(45)]
+                );
+                assert!(scanner.stack.is_empty());
             }
             Err(e) => panic!("{:?}", e),
         }
