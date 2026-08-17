@@ -30,7 +30,7 @@ impl<'a> Reader<'a> {
             return;
         }
 
-        while let Some(c) = self.chars.next() {
+        if let Some(c) = self.chars.by_ref().next() {
             self.i += 1;
             self.current = Some(c);
             return;

@@ -13,15 +13,14 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn identifier(&mut self) -> Result<Token, ExprError> {
-        todo!()
-    }
-
-    fn number(&mut self) -> Result<Token, ExprError> {
+    fn take_until<F>(&mut self, condition: F) -> (usize, usize)
+    where
+        F: Fn(char) -> bool,
+    {
         let start = self.reader.index();
         let mut end = start;
         while let Some(c) = self.reader.peek() {
-            if c.is_ascii_digit() || c == '.' {
+            if condition(c) {
                 self.reader.advance();
                 end += 1;
                 continue;
@@ -30,6 +29,16 @@ impl<'a> Scanner<'a> {
             break;
         }
 
+        (start, end)
+    }
+
+    fn identifier(&mut self) -> Result<Token<'_>, ExprError<'_>> {
+        let (start, end) = self.take_until(|c| c.is_alphanumeric() || c == '_');
+        Ok(Identifier(self.reader.get_lexeme(start, end)))
+    }
+
+    fn number(&mut self) -> Result<Token<'_>, ExprError<'_>> {
+        let (start, end) = self.take_until(|c| c.is_ascii_digit() || c == '.');
         let number = self.reader.get_lexeme(start, end);
         match number.parse::<f64>() {
             Ok(e) => Ok(Number(e)),
@@ -37,7 +46,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn advance(&mut self) -> Option<Result<Token, ExprError>> {
+    fn advance(&mut self) -> Option<Result<Token<'_>, ExprError<'_>>> {
         while let Some(c) = self.reader.advance() {
             if c.is_whitespace() {
                 continue;
@@ -89,7 +98,7 @@ pub enum Token<'a> {
     Star,
     Slash,
     Number(f64),
-    Identifier(&'a str) ,
+    Identifier(&'a str),
 }
 
 #[derive(Debug)]
@@ -125,9 +134,19 @@ mod test {
     #[test]
     fn test_identifier() {
         let source = "xabc";
+        let mut scanner = Scanner::new(source);
+        assert!(matches!(scanner.advance(), Some(Ok(Identifier("xabc")))))
+    }
 
-        // let mut scanner = Scanner::new(source);
-        // assert!(matches!(scanner.advance(), Some(Ok(Identifier(.)))))
+    #[test]
+    fn test_identifier_2() {
+        let source = "xabc atest 123 x_2 x2";
+        let mut scanner = Scanner::new(source);
+        assert!(matches!(scanner.advance(), Some(Ok(Identifier("xabc")))));
+        assert!(matches!(scanner.advance(), Some(Ok(Identifier("atest")))));
+        assert!(matches!(scanner.advance(), Some(Ok(Number(123.)))));
+        assert!(matches!(scanner.advance(), Some(Ok(Identifier("x_2")))));
+        assert!(matches!(scanner.advance(), Some(Ok(Identifier("x2")))));
     }
 
     #[test]
