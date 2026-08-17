@@ -32,12 +32,12 @@ impl<'a> Scanner<'a> {
         (start, end)
     }
 
-    fn identifier(&mut self) -> Result<Token<'_>, ExprError<'_>> {
+    fn identifier(&mut self) -> Result<Token<'a>, ExprError<'a>> {
         let (start, end) = self.take_until(|c| c.is_alphanumeric() || c == '_');
         Ok(Identifier(self.reader.get_lexeme(start, end)))
     }
 
-    fn number(&mut self) -> Result<Token<'_>, ExprError<'_>> {
+    fn number(&mut self) -> Result<Token<'a>, ExprError<'a>> {
         let (start, end) = self.take_until(|c| c.is_ascii_digit() || c == '.');
         let number = self.reader.get_lexeme(start, end);
         match number.parse::<f64>() {
@@ -46,7 +46,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn advance(&mut self) -> Option<Result<Token<'_>, ExprError<'_>>> {
+    pub fn advance(&mut self) -> Option<Result<Token<'a>, ExprError<'a>>> {
         while let Some(c) = self.reader.advance() {
             if c.is_whitespace() {
                 continue;

@@ -21,7 +21,7 @@ impl<'a> Reader<'a> {
         self.i as usize
     }
 
-    pub fn get_lexeme(&self, start: usize, end: usize) -> &str {
+    pub fn get_lexeme(&self, start: usize, end: usize) -> &'a str {
         &self.source[start..=end]
     }
 
