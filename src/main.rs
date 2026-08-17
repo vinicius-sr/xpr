@@ -1,4 +1,5 @@
 mod scanner;
+mod reader;
 
 use std::env;
 
