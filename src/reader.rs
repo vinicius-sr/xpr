@@ -25,18 +25,13 @@ impl<'a> Reader<'a> {
         &self.source[start..=end]
     }
 
-    pub fn fill(&mut self) {
+    fn fill(&mut self) {
         if self.current.is_some() {
             return;
         }
 
         while let Some(c) = self.chars.next() {
             self.i += 1;
-
-            if c.is_whitespace() {
-                continue;
-            }
-
             self.current = Some(c);
             return;
         }
@@ -68,27 +63,34 @@ mod test {
         assert_eq!(reader.index(), 0);
 
         [2, 4, 6].into_iter().for_each(|e| {
+            reader.advance();
             assert!(matches!(reader.advance(), Some('/')));
             assert_eq!(reader.index(), e);
         });
 
+        reader.advance();
         [8, 9].into_iter().for_each(|e| {
             assert!(matches!(reader.advance(), Some('-')));
             assert_eq!(reader.index(), e);
         });
 
+        reader.advance();
         assert!(matches!(reader.advance(), Some(')')));
         assert_eq!(reader.index(), 11);
 
+        reader.advance();
         assert!(matches!(reader.advance(), Some('[')));
         assert_eq!(reader.index(), 13);
 
+        reader.advance();
         assert!(matches!(reader.advance(), Some('+')));
         assert_eq!(reader.index(), 15);
 
+        reader.advance();
         assert!(matches!(reader.advance(), Some('-')));
         assert_eq!(reader.index(), 17);
 
+        reader.advance();
         assert!(matches!(reader.advance(), Some('1')));
         assert_eq!(reader.index(), 19);
 
@@ -107,6 +109,7 @@ mod test {
         assert!(matches!(reader.advance(), Some('4')));
         assert_eq!(reader.index(), 24);
 
+        reader.advance();
         assert!(matches!(reader.advance(), None));
         assert_eq!(reader.index(), 25);
     }

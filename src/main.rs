@@ -1,5 +1,5 @@
-mod scanner;
 mod reader;
+mod scanner;
 
 use std::env;
 
@@ -10,7 +10,7 @@ fn main() {
         Some(source) => {
             println!("Received: {}", source);
             let mut scanner = Scanner::new(source.as_str());
-        },
+        }
         None => println!("No expression or function provided"),
     }
 }
