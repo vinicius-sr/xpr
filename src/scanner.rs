@@ -4,12 +4,14 @@ use crate::scanner::{ExprError::UnexpectedChar, Token::*};
 
 pub struct Scanner<'a> {
     reader: Reader<'a>,
+    current: Option<Token<'a>>,
 }
 
 impl<'a> Scanner<'a> {
     pub fn new(source: &'a str) -> Self {
         Self {
             reader: Reader::new(source),
+            current: None,
         }
     }
 
@@ -45,6 +47,10 @@ impl<'a> Scanner<'a> {
             Err(_) => Err(InvalidNumber(number)),
         }
     }
+
+    fn fill(&mut self) {}
+
+    pub fn peek(&mut self) {}
 
     pub fn advance(&mut self) -> Option<Result<Token<'a>, ExprError<'a>>> {
         while let Some(c) = self.reader.advance() {
@@ -107,6 +113,8 @@ pub enum Token<'a> {
 pub enum ExprError<'a> {
     UnexpectedChar(char),
     InvalidNumber(&'a str),
+    UnexpectedToken(Token<'a>),
+    UnexpectedEnd,
 }
 
 #[cfg(test)]

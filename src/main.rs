@@ -11,8 +11,9 @@ fn main() {
         Some(source) => {
             println!("Received: {}", source);
             let mut compiler = Compiler::new(source.as_str());
-            if let Err(e) = compiler.compile() {
-                println!("{:?}", e);
+            match compiler.compile() {
+                Ok(instr) => instr.iter().for_each(|f| println!("{:?}", f)),
+                Err(e) => println!("{:?}", e),
             }
         }
         None => println!("No expression or function provided"),
