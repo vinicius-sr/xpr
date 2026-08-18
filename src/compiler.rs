@@ -1,4 +1,4 @@
-use crate::scanner::{ExprError, Scanner};
+use crate::scanner::{ExprError, Scanner, Token::*};
 
 pub struct Compiler<'a> {
     scanner: Scanner<'a>,
@@ -7,7 +7,7 @@ pub struct Compiler<'a> {
 impl<'a> Compiler<'a> {
     pub fn new(source: &'a str) -> Self {
         Self {
-            scanner: Scanner::<'a>::new(source),
+            scanner: Scanner::new(source),
         }
     }
 

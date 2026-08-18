@@ -86,7 +86,7 @@ impl<'a> Scanner<'a> {
     }
 }*/
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Token<'a> {
     LeftParen,
     RightParen,
@@ -97,6 +97,8 @@ pub enum Token<'a> {
     Semicolon,
     Star,
     Slash,
+    Equal,
+    NotEqual,
     Number(f64),
     Identifier(&'a str),
 }
