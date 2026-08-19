@@ -48,10 +48,6 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn fill(&mut self) {}
-
-    pub fn peek(&mut self) {}
-
     pub fn advance(&mut self) -> Option<Result<Token<'a>, ExprError<'a>>> {
         while let Some(c) = self.reader.advance() {
             if c.is_whitespace() {
@@ -68,6 +64,38 @@ impl<'a> Scanner<'a> {
                 ';' => Ok(Semicolon),
                 '*' => Ok(Star),
                 '/' => Ok(Slash),
+                '=' => {
+                    if self.reader.peek() == Some('=') {
+                        self.reader.advance();
+                        Ok(EqualEqual)
+                    } else {
+                        Ok(Equal)
+                    }
+                }
+                '!' => {
+                    if self.reader.peek() == Some('=') {
+                        self.reader.advance();
+                        Ok(NotEqual)
+                    } else {
+                        Ok(Bang)
+                    }
+                }
+                '>' => {
+                    if self.reader.peek() == Some('=') {
+                        self.reader.advance();
+                        Ok(GreaterEqual)
+                    } else {
+                        Ok(Greater)
+                    }
+                }
+                '<' => {
+                    if self.reader.peek() == Some('=') {
+                        self.reader.advance();
+                        Ok(LessEqual)
+                    } else {
+                        Ok(Less)
+                    }
+                }
                 c => {
                     if c.is_ascii_digit() {
                         self.number()
@@ -104,12 +132,18 @@ pub enum Token<'a> {
     Star,
     Slash,
     Equal,
+    EqualEqual,
     NotEqual,
+    Bang,
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
     Number(f64),
     Identifier(&'a str),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ExprError<'a> {
     UnexpectedChar(char),
     InvalidNumber(&'a str),
@@ -119,7 +153,7 @@ pub enum ExprError<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::scanner::{Scanner, Token::*};
+    use crate::scanner::{ExprError::*, Scanner, Token::*};
 
     #[test]
     fn test_simple_token() {
@@ -133,12 +167,74 @@ mod test {
             (";", Semicolon),
             ("*", Star),
             ("/", Slash),
+            ("!", Bang),
+            ("=", Equal),
+            ("==", EqualEqual),
+            (">", Greater),
+            (">=", GreaterEqual),
+            ("<", Less),
+            ("<=", LessEqual),
         ];
 
         source.into_iter().for_each(|(c, b)| {
             let mut scanner = Scanner::new(c);
-            assert!(matches!(scanner.advance(), Some(Ok(b))))
+            assert_eq!(scanner.advance(), Some(Ok(b)));
+            assert_eq!(scanner.advance(), None);
         });
+
+        let mut scanner = Scanner::new("= ==");
+        assert_eq!(scanner.advance(), Some(Ok(Equal)));
+        assert_eq!(scanner.advance(), Some(Ok(EqualEqual)));
+        assert_eq!(scanner.advance(), None);
+
+        let mut scanner = Scanner::new("== !=");
+        assert_eq!(scanner.advance(), Some(Ok(EqualEqual)));
+        assert_eq!(scanner.advance(), Some(Ok(NotEqual)));
+        assert_eq!(scanner.advance(), None);
+    }
+
+    #[test]
+    fn test_two_char_tokens_consume_both_chars() {
+        let source = vec![
+            ("==", EqualEqual),
+            ("!=", NotEqual),
+            (">=", GreaterEqual),
+            ("<=", LessEqual),
+        ];
+
+        source.into_iter().for_each(|(c, expected)| {
+            let mut scanner = Scanner::new(c);
+            assert_eq!(scanner.advance(), Some(Ok(expected)));
+            assert_eq!(scanner.advance(), None);
+        });
+    }
+
+    #[test]
+    fn test_comparison_tokens_in_sequence() {
+        let source = "a == b != c >= d <= e";
+        let mut scanner = Scanner::new(source);
+        assert_eq!(scanner.advance(), Some(Ok(Identifier("a"))));
+        assert_eq!(scanner.advance(), Some(Ok(EqualEqual)));
+        assert_eq!(scanner.advance(), Some(Ok(Identifier("b"))));
+        assert_eq!(scanner.advance(), Some(Ok(NotEqual)));
+        assert_eq!(scanner.advance(), Some(Ok(Identifier("c"))));
+        assert_eq!(scanner.advance(), Some(Ok(GreaterEqual)));
+        assert_eq!(scanner.advance(), Some(Ok(Identifier("d"))));
+        assert_eq!(scanner.advance(), Some(Ok(LessEqual)));
+        assert_eq!(scanner.advance(), Some(Ok(Identifier("e"))));
+        assert_eq!(scanner.advance(), None);
+    }
+
+    #[test]
+    fn test_single_char_not_overconsumed() {
+        let source = "= ! > < 5";
+        let mut scanner = Scanner::new(source);
+        assert_eq!(scanner.advance(), Some(Ok(Equal)));
+        assert_eq!(scanner.advance(), Some(Ok(Bang)));
+        assert_eq!(scanner.advance(), Some(Ok(Greater)));
+        assert_eq!(scanner.advance(), Some(Ok(Less)));
+        assert_eq!(scanner.advance(), Some(Ok(Number(5.))));
+        assert_eq!(scanner.advance(), None);
     }
 
     #[test]
@@ -185,31 +281,32 @@ mod test {
     }
 
     #[test]
-    fn test_number_rewind_1() {
-        let source = "123 + ";
-        let mut scanner = Scanner::new(source);
-
-        assert!(matches!(scanner.advance(), Some(Ok(Number(123.)))));
-        assert!(matches!(scanner.advance(), Some(Ok(Plus))));
-    }
-
-    #[test]
-    fn test_number_rewind_2() {
-        let source = "123+";
-        let mut scanner = Scanner::new(source);
-
-        assert!(matches!(scanner.advance(), Some(Ok(Number(123.)))));
-        assert!(matches!(scanner.advance(), Some(Ok(Plus))))
-    }
-
-    #[test]
-    fn test_number_rewind_3() {
+    fn test_number_stops_at_operator_boundary() {
         let source = "123+ - 4";
         let mut scanner = Scanner::new(source);
 
-        assert!(matches!(scanner.advance(), Some(Ok(Number(123.)))));
-        assert!(matches!(scanner.advance(), Some(Ok(Plus))));
-        assert!(matches!(scanner.advance(), Some(Ok(Minus))));
-        assert!(matches!(scanner.advance(), Some(Ok(Number(4.)))));
+        assert_eq!(scanner.advance(), Some(Ok(Number(123.))));
+        assert_eq!(scanner.advance(), Some(Ok(Plus)));
+        assert_eq!(scanner.advance(), Some(Ok(Minus)));
+        assert_eq!(scanner.advance(), Some(Ok(Number(4.))));
+        assert_eq!(scanner.advance(), None);
+    }
+
+    #[test]
+    fn test_number_stops_at_identifier_boundary() {
+        let source = "123abc";
+        let mut scanner = Scanner::new(source);
+
+        assert_eq!(scanner.advance(), Some(Ok(Number(123.))));
+        assert_eq!(scanner.advance(), Some(Ok(Identifier("abc"))));
+        assert_eq!(scanner.advance(), None);
+    }
+
+    #[test]
+    fn test_invalid_number_multiple_dots() {
+        let source = "1.2.3";
+        let mut scanner = Scanner::new(source);
+
+        assert_eq!(scanner.advance(), Some(Err(InvalidNumber("1.2.3"))));
     }
 }

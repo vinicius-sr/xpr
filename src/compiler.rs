@@ -73,7 +73,22 @@ impl<'a> Compiler<'a> {
     }
 
     fn unary(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
-        self.primary()
+        if let Some(current) = self.advance() {
+            let current = current?;
+            match current {
+                Minus | Bang => {
+                    let mut expr = self.primary()?;
+                    expr.push(Negate);
+                    Ok(expr)
+                }
+                _ => {
+                    self.current = Some(current);
+                    self.primary()
+                }
+            }
+        } else {
+            Err(UnexpectedEnd)
+        }
     }
 
     fn primary(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
@@ -106,6 +121,7 @@ pub enum OpCode {
     Sub,
     Mult,
     Div,
+    Negate,
 }
 
 #[cfg(test)]
@@ -121,7 +137,7 @@ mod test {
         },
     };
 
-    macro_rules! assert_comp {
+    macro_rules! assert_ok {
         ($method:ident | $source:expr => $expected:expr) => {{
             let mut compiler = Compiler::new($source);
             match compiler.$method() {
@@ -131,22 +147,41 @@ mod test {
         }};
     }
 
+    macro_rules! assert_err {
+        ($method:ident | $source:expr => $expected:expr) => {{
+            let mut compiler = Compiler::new($source);
+            match compiler.$method() {
+                Ok(v) => panic!("Expected err, found: {:?}", v),
+                Err(e) => assert_eq!(e, $expected),
+            }
+        }};
+    }
+
     #[test]
     fn test_primary() {
-        let mut compiler = Compiler::new("(123x");
-        assert!(matches!(
-            compiler.primary(),
-            Err(UnexpectedToken(Identifier("x")))
-        ));
-
-        assert_comp!(primary | "123" => vec![Const(123.)]);
-        assert_comp!(primary | "(123)" =>  vec![Const(123.)]);
+        assert_err!(primary | "(123x" => UnexpectedToken(Identifier("x")));
+        assert_ok!(primary | "123" => vec![Const(123.)]);
+        assert_ok!(primary | "(123)" =>  vec![Const(123.)]);
     }
 
     #[test]
     fn test_term() {
-        assert_comp!(term | "1 + 2" => vec![Const(1.), Const(2.), Add]);
-        assert_comp!(term | "1 - 2 + 3" => vec![Const(1.), Const(2.), Sub, Const(3.), Add]);
-        assert_comp!(term | "1 - 2 * 3" => vec![Const(1.), Const(2.), Const(3.), Mult, Sub]);
+        assert_ok!(term | "1 + 2" => vec![Const(1.), Const(2.), Add]);
+        assert_ok!(term | "1 - 2 + 3" => vec![Const(1.), Const(2.), Sub, Const(3.), Add]);
+        assert_ok!(term | "1 - 2 * 3" => vec![Const(1.), Const(2.), Const(3.), Mult, Sub]);
+        assert_ok!(term | "(1 - 2) * 3" => vec![Const(1.), Const(2.), Sub, Const(3.), Mult]);
+    }
+
+    #[test]
+    fn test_unary() {
+        assert_ok!(unary | "-2" => vec![Const(2.), Negate]);
+        assert_ok!(unary | "!2" => vec![Const(2.), Negate]);
+        assert_ok!(unary | "-(2 + 3)" => vec![Const(2.), Const(3.), Add, Negate]);
+    }
+
+    #[test]
+    fn test_factor() {
+        assert_ok!(factor | "2 * 3" => vec![Const(2.), Const(3.), Mult]);
+        assert_ok!(factor | "2 * (3 - 5)" => vec![Const(2.), Const(3.), Const(5.), Sub, Mult]);
     }
 }
