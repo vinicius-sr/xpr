@@ -9,7 +9,7 @@ use crate::compiler::OpCode::*;
 macro_rules! binary {
     ($self:ident, $method:ident | $($pat:pat => $op:tt),*) => {{
         let mut expr = $self.$method()?;
-        while let Some(current) = $self.scanner.advance() {
+        while let Some(current) = $self.advance() {
             let current = current?;
             match current {
                 $(
@@ -19,11 +19,14 @@ macro_rules! binary {
                         expr.push($op);
                     }
                 ),*
-                _ => return Ok((Some(current), expr)),
+                _ => {
+                    $self.current = Some(current);
+                    return Ok(expr);
+                }
             }
         }
 
-        Ok((None, expr))
+        Ok(expr)
     }};
 }
 
@@ -40,52 +43,32 @@ impl<'a> Compiler<'a> {
         }
     }
 
+    pub fn advance(&mut self) -> Option<Result<Token<'a>, ExprError<'a>>> {
+        match self.current.take() {
+            Some(c) => Some(Ok(c)),
+            None => self.scanner.advance(),
+        }
+    }
+
     pub fn compile(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
         // while let Some(token) = self.scanner.advance() {
         // let token = token?;
         // println!("{:?}", token);
         // }
 
-        self.expr();
+        let _ = self.expr();
         todo!()
     }
 
-    fn expr(&mut self) -> Result<(Option<Token<'a>>, Vec<OpCode>), ExprError<'a>> {
+    fn expr(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
         self.term()
     }
 
-    fn term(&mut self) -> Result<(Option<Token<'a>>, Vec<OpCode>), ExprError<'a>> {
-        let (mut pending, mut expr) = self.factor()?;
-
-        loop {
-            let current = match pending.take() {
-                Some(t) => t,
-                None => match self.scanner.advance() {
-                    Some(Ok(t)) => t,
-                    Some(Err(e)) => return Err(e),
-                    None => return Ok((None, expr)),
-                },
-            };
-
-            match current {
-                Plus => {
-                    let (t, right) = self.factor()?;
-                    pending = t;
-                    expr.extend(right);
-                    expr.push(Add);
-                }
-                Minus => {
-                    let (t, right) = self.factor()?;
-                    pending = t;
-                    expr.extend(right);
-                    expr.push(Sub);
-                }
-                _ => return Ok((Some(current), expr)),
-            }
-        }
+    fn term(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
+        binary!(self, factor | Plus => Add, Minus => Sub)
     }
 
-    fn factor(&mut self) -> Result<(Option<Token<'a>>, Vec<OpCode>), ExprError<'a>> {
+    fn factor(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
         binary!(self, unary | Star => Mult, Slash => Div)
     }
 
@@ -94,15 +77,15 @@ impl<'a> Compiler<'a> {
     }
 
     fn primary(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
-        if let Some(current) = self.scanner.advance() {
+        if let Some(current) = self.advance() {
             let current = current?;
 
             return match current {
                 Number(number) => Ok(vec![Const(number)]),
                 LeftParen => {
-                    let (current, result) = self.expr()?;
+                    let result = self.expr()?;
 
-                    match current {
+                    match self.current.take() {
                         Some(RightParen) => Ok(result),
                         Some(e) => Err(UnexpectedToken(e)),
                         None => Err(UnexpectedEnd),
@@ -162,7 +145,8 @@ mod test {
 
     #[test]
     fn test_term() {
-        assert_comp!(term | "1 + 2" => (None, vec![Const(1.), Const(2.), Add]));
-        assert_comp!(term | "1 * 2 + 3" => (None, vec![Const(1.), Const(2.), Mult, Const(3.), Add]));
+        assert_comp!(term | "1 + 2" => vec![Const(1.), Const(2.), Add]);
+        assert_comp!(term | "1 - 2 + 3" => vec![Const(1.), Const(2.), Sub, Const(3.), Add]);
+        assert_comp!(term | "1 - 2 * 3" => vec![Const(1.), Const(2.), Const(3.), Mult, Sub]);
     }
 }
