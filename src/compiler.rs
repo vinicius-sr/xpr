@@ -4,6 +4,12 @@ use crate::scanner::{
     Token::{self, *},
 };
 
+use crate::compiler::OpCode::Greater as OpGreater;
+use crate::compiler::OpCode::GreaterEqual as OpGreaterEqual;
+use crate::compiler::OpCode::Less as OpLess;
+use crate::compiler::OpCode::LessEqual as OpLessEqual;
+use crate::compiler::OpCode::Equal as OpEqual;
+use crate::compiler::OpCode::NotEqual as OpNotEqual;
 use crate::compiler::OpCode::*;
 
 macro_rules! binary {
@@ -51,17 +57,25 @@ impl<'a> Compiler<'a> {
     }
 
     pub fn compile(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
-        // while let Some(token) = self.scanner.advance() {
-        // let token = token?;
-        // println!("{:?}", token);
-        // }
-
-        let _ = self.expr();
-        todo!()
+        self.expr()
     }
 
     fn expr(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
-        self.term()
+        self.equality()
+    }
+
+    fn equality(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
+        binary!(self, comparison |
+            Token::EqualEqual => OpEqual, 
+            Token::NotEqual => OpNotEqual)
+    }
+
+    fn comparison(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
+        binary!(self, term |
+            Token::Greater => OpGreater, 
+            Token::GreaterEqual => OpGreaterEqual,
+            Token::Less => OpLess,
+            Token::LessEqual => OpLessEqual)
     }
 
     fn term(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
@@ -122,6 +136,12 @@ pub enum OpCode {
     Mult,
     Div,
     Negate,
+    Equal,
+    NotEqual,
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
 }
 
 #[cfg(test)]
@@ -183,5 +203,37 @@ mod test {
     fn test_factor() {
         assert_ok!(factor | "2 * 3" => vec![Const(2.), Const(3.), Mult]);
         assert_ok!(factor | "2 * (3 - 5)" => vec![Const(2.), Const(3.), Const(5.), Sub, Mult]);
+    }
+
+    #[test]
+    fn test_comparison() {
+        assert_ok!(comparison | "1 > 2" => vec![Const(1.), Const(2.), OpCode::Greater]);
+        assert_ok!(comparison | "1 >= 2" => vec![Const(1.), Const(2.), OpCode::GreaterEqual]);
+        assert_ok!(comparison | "1 < 2" => vec![Const(1.), Const(2.), OpCode::Less]);
+        assert_ok!(comparison | "1 <= 2" => vec![Const(1.), Const(2.), OpCode::LessEqual]);
+        assert_ok!(comparison | "1 > 2 >= 3" => vec![Const(1.), Const(2.), OpCode::Greater, Const(3.), OpCode::GreaterEqual]);
+    }
+
+    #[test]
+    fn test_equality() {
+        assert_ok!(equality | "1 == 2" => vec![Const(1.), Const(2.), OpCode::Equal]);
+        assert_ok!(equality | "1 != 2" => vec![Const(1.), Const(2.), OpCode::NotEqual]);
+        assert_ok!(equality | "1 == 2 != 3" => vec![Const(1.), Const(2.), OpCode::Equal, Const(3.), OpCode::NotEqual]);
+    }
+
+    #[test]
+    fn test_compile() {
+        assert_ok!(compile | "1 + 2 * 3 > 4" => vec![Const(1.), Const(2.), Const(3.), Mult, Add, Const(4.), OpCode::Greater]);
+        assert_ok!(compile | "1 + 2 == 3 * 4" => vec![Const(1.), Const(2.), Add, Const(3.), Const(4.), Mult, OpCode::Equal]);
+        assert_ok!(compile | "-(1 + 2) <= 3" => vec![Const(1.), Const(2.), Add, Negate, Const(3.), OpCode::LessEqual]);
+        assert_ok!(compile | "1 < 2 == 3 != 4" => vec![Const(1.), Const(2.), OpCode::Less, Const(3.), OpCode::Equal, Const(4.), OpCode::NotEqual]);
+    }
+
+    #[test]
+    fn test_compile_errors() {
+        assert_err!(compile | "" => UnexpectedEnd);
+        assert_err!(compile | "1 +" => UnexpectedEnd);
+        assert_err!(compile | "(" => UnexpectedEnd);
+        assert_err!(compile | "--2" => UnexpectedToken(Minus));
     }
 }
