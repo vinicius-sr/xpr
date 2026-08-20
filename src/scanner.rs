@@ -4,14 +4,12 @@ use crate::scanner::{ExprError::UnexpectedChar, Token::*};
 
 pub struct Scanner<'a> {
     reader: Reader<'a>,
-    current: Option<Token<'a>>,
 }
 
 impl<'a> Scanner<'a> {
     pub fn new(source: &'a str) -> Self {
         Self {
             reader: Reader::new(source),
-            current: None,
         }
     }
 
@@ -149,6 +147,8 @@ pub enum ExprError<'a> {
     InvalidNumber(&'a str),
     UnexpectedToken(Token<'a>),
     UnexpectedEnd,
+    InvalidStack,
+    DivisionByZero,
 }
 
 #[cfg(test)]

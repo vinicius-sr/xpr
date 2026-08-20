@@ -1,18 +1,20 @@
 mod compiler;
+mod interpreter;
 mod reader;
 mod scanner;
 
 use std::env;
 
-use crate::compiler::Compiler;
+use crate::interpreter::Interpreter;
 
 fn main() {
     match env::args().nth(1) {
         Some(source) => {
             println!("Received: {}", source);
-            let mut compiler = Compiler::new(source.as_str());
-            match compiler.compile() {
-                Ok(instr) => instr.iter().for_each(|f| println!("{:?}", f)),
+
+            match Interpreter::compile_and_run(source.as_str()) {
+                Ok(Some(v)) => println!("Response: {}", v),
+                Ok(None) => println!("No result"),
                 Err(e) => println!("{:?}", e),
             }
         }

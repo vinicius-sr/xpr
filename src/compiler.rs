@@ -49,7 +49,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    pub fn advance(&mut self) -> Option<Result<Token<'a>, ExprError<'a>>> {
+    fn advance(&mut self) -> Option<Result<Token<'a>, ExprError<'a>>> {
         match self.current.take() {
             Some(c) => Some(Ok(c)),
             None => self.scanner.advance(),
@@ -147,7 +147,7 @@ pub enum OpCode {
     Greater,
     GreaterEqual,
     Less,
-    LessEqual,
+    LessEqual
 }
 
 #[cfg(test)]
