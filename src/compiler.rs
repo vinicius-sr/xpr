@@ -57,7 +57,13 @@ impl<'a> Compiler<'a> {
     }
 
     pub fn compile(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
-        self.expr()
+        let result = self.expr()?;
+
+        match self.advance() {
+            Some(Ok(token)) => Err(UnexpectedToken(token)),
+            Some(Err(e)) => Err(e),
+            None => Ok(result),
+        }
     }
 
     fn expr(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
@@ -235,5 +241,12 @@ mod test {
         assert_err!(compile | "1 +" => UnexpectedEnd);
         assert_err!(compile | "(" => UnexpectedEnd);
         assert_err!(compile | "--2" => UnexpectedToken(Minus));
+    }
+
+    #[test]
+    fn test_compile_rejects_trailing_tokens() {
+        assert_err!(compile | "1 2" => UnexpectedToken(Number(2.)));
+        assert_err!(compile | "(1)(2)" => UnexpectedToken(LeftParen));
+        assert_err!(compile | "1 + 2 )" => UnexpectedToken(RightParen));
     }
 }

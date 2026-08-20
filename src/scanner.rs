@@ -24,7 +24,7 @@ impl<'a> Scanner<'a> {
         while let Some(c) = self.reader.peek() {
             if condition(c) {
                 self.reader.advance();
-                end += 1;
+                end += c.len_utf8();
                 continue;
             }
 
@@ -308,5 +308,23 @@ mod test {
         let mut scanner = Scanner::new(source);
 
         assert_eq!(scanner.advance(), Some(Err(InvalidNumber("1.2.3"))));
+    }
+
+    #[test]
+    fn test_multibyte_whitespace_before_number() {
+        let source = "\u{a0}123";
+        let mut scanner = Scanner::new(source);
+
+        assert_eq!(scanner.advance(), Some(Ok(Number(123.))));
+        assert_eq!(scanner.advance(), None);
+    }
+
+    #[test]
+    fn test_multibyte_identifier() {
+        let source = "café";
+        let mut scanner = Scanner::new(source);
+
+        assert_eq!(scanner.advance(), Some(Ok(Identifier("café"))));
+        assert_eq!(scanner.advance(), None);
     }
 }

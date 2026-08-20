@@ -1,7 +1,7 @@
-use std::str::Chars;
+use std::str::CharIndices;
 
 pub struct Reader<'a> {
-    chars: Chars<'a>,
+    chars: CharIndices<'a>,
     source: &'a str,
     current: Option<char>,
     i: isize,
@@ -11,7 +11,7 @@ impl<'a> Reader<'a> {
     pub fn new(source: &'a str) -> Self {
         Self {
             source,
-            chars: source.chars(),
+            chars: source.char_indices(),
             i: -1,
             current: None,
         }
@@ -30,8 +30,8 @@ impl<'a> Reader<'a> {
             return;
         }
 
-        if let Some(c) = self.chars.next() {
-            self.i += 1;
+        if let Some((i, c)) = self.chars.next() {
+            self.i = i as isize;
             self.current = Some(c);
             return;
         }
