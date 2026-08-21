@@ -14,31 +14,31 @@ use crate::compiler::OpCode::*;
 
 macro_rules! binary {
     ($self:ident, $method:ident | $($pat:pat => $op:tt),*) => {{
-        let mut expr = $self.$method()?;
+        $self.$method()?;
         while let Some(current) = $self.advance() {
             let current = current?;
             match current {
                 $(
                     $pat => {
-                        let right = $self.$method()?;
-                        expr.extend(right);
-                        expr.push($op);
+                        $self.$method()?;
+                        $self.output.push($op);
                     }
                 ),*
                 _ => {
                     $self.current = Some(current);
-                    return Ok(expr);
+                    return Ok(());
                 }
             }
         }
 
-        Ok(expr)
+        Ok(())
     }};
 }
 
 pub struct Compiler<'a> {
     scanner: Scanner<'a>,
     current: Option<Token<'a>>,
+    output: Vec<OpCode>,
 }
 
 impl<'a> Compiler<'a> {
@@ -46,6 +46,7 @@ impl<'a> Compiler<'a> {
         Self {
             scanner: Scanner::new(source),
             current: None,
+            output: Vec::new(),
         }
     }
 
@@ -57,26 +58,26 @@ impl<'a> Compiler<'a> {
     }
 
     pub fn compile(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
-        let result = self.expr()?;
+        self.expr()?;
 
         match self.advance() {
             Some(Ok(token)) => Err(UnexpectedToken(token)),
             Some(Err(e)) => Err(e),
-            None => Ok(result),
+            None => Ok(std::mem::take(&mut self.output)),
         }
     }
 
-    fn expr(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
+    fn expr(&mut self) -> Result<(), ExprError<'a>> {
         self.equality()
     }
 
-    fn equality(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
+    fn equality(&mut self) -> Result<(), ExprError<'a>> {
         binary!(self, comparison |
             Token::EqualEqual => OpEqual, 
             Token::NotEqual => OpNotEqual)
     }
 
-    fn comparison(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
+    fn comparison(&mut self) -> Result<(), ExprError<'a>> {
         binary!(self, term |
             Token::Greater => OpGreater, 
             Token::GreaterEqual => OpGreaterEqual,
@@ -84,22 +85,22 @@ impl<'a> Compiler<'a> {
             Token::LessEqual => OpLessEqual)
     }
 
-    fn term(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
+    fn term(&mut self) -> Result<(), ExprError<'a>> {
         binary!(self, factor | Plus => Add, Minus => Sub)
     }
 
-    fn factor(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
+    fn factor(&mut self) -> Result<(), ExprError<'a>> {
         binary!(self, unary | Star => Mult, Slash => Div)
     }
 
-    fn unary(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
+    fn unary(&mut self) -> Result<(), ExprError<'a>> {
         if let Some(current) = self.advance() {
             let current = current?;
             match current {
                 Minus | Bang => {
-                    let mut expr = self.primary()?;
-                    expr.push(Negate);
-                    Ok(expr)
+                    self.primary()?;
+                    self.output.push(Negate);
+                    Ok(())
                 }
                 _ => {
                     self.current = Some(current);
@@ -111,17 +112,20 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn primary(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
+    fn primary(&mut self) -> Result<(), ExprError<'a>> {
         if let Some(current) = self.advance() {
             let current = current?;
 
             return match current {
-                Number(number) => Ok(vec![Const(number)]),
+                Number(number) => {
+                    self.output.push(Const(number));
+                    Ok(())
+                }
                 LeftParen => {
-                    let result = self.expr()?;
+                    self.expr()?;
 
                     match self.current.take() {
-                        Some(RightParen) => Ok(result),
+                        Some(RightParen) => Ok(()),
                         Some(e) => Err(UnexpectedToken(e)),
                         None => Err(UnexpectedEnd),
                     }
@@ -185,46 +189,46 @@ mod test {
 
     #[test]
     fn test_primary() {
-        assert_err!(primary | "(123x" => UnexpectedToken(Identifier("x")));
-        assert_ok!(primary | "123" => vec![Const(123.)]);
-        assert_ok!(primary | "(123)" =>  vec![Const(123.)]);
+        assert_err!(compile | "(123x" => UnexpectedToken(Identifier("x")));
+        assert_ok!(compile | "123" => vec![Const(123.)]);
+        assert_ok!(compile | "(123)" =>  vec![Const(123.)]);
     }
 
     #[test]
     fn test_term() {
-        assert_ok!(term | "1 + 2" => vec![Const(1.), Const(2.), Add]);
-        assert_ok!(term | "1 - 2 + 3" => vec![Const(1.), Const(2.), Sub, Const(3.), Add]);
-        assert_ok!(term | "1 - 2 * 3" => vec![Const(1.), Const(2.), Const(3.), Mult, Sub]);
-        assert_ok!(term | "(1 - 2) * 3" => vec![Const(1.), Const(2.), Sub, Const(3.), Mult]);
+        assert_ok!(compile | "1 + 2" => vec![Const(1.), Const(2.), Add]);
+        assert_ok!(compile | "1 - 2 + 3" => vec![Const(1.), Const(2.), Sub, Const(3.), Add]);
+        assert_ok!(compile | "1 - 2 * 3" => vec![Const(1.), Const(2.), Const(3.), Mult, Sub]);
+        assert_ok!(compile | "(1 - 2) * 3" => vec![Const(1.), Const(2.), Sub, Const(3.), Mult]);
     }
 
     #[test]
     fn test_unary() {
-        assert_ok!(unary | "-2" => vec![Const(2.), Negate]);
-        assert_ok!(unary | "!2" => vec![Const(2.), Negate]);
-        assert_ok!(unary | "-(2 + 3)" => vec![Const(2.), Const(3.), Add, Negate]);
+        assert_ok!(compile | "-2" => vec![Const(2.), Negate]);
+        assert_ok!(compile | "!2" => vec![Const(2.), Negate]);
+        assert_ok!(compile | "-(2 + 3)" => vec![Const(2.), Const(3.), Add, Negate]);
     }
 
     #[test]
     fn test_factor() {
-        assert_ok!(factor | "2 * 3" => vec![Const(2.), Const(3.), Mult]);
-        assert_ok!(factor | "2 * (3 - 5)" => vec![Const(2.), Const(3.), Const(5.), Sub, Mult]);
+        assert_ok!(compile | "2 * 3" => vec![Const(2.), Const(3.), Mult]);
+        assert_ok!(compile | "2 * (3 - 5)" => vec![Const(2.), Const(3.), Const(5.), Sub, Mult]);
     }
 
     #[test]
     fn test_comparison() {
-        assert_ok!(comparison | "1 > 2" => vec![Const(1.), Const(2.), OpCode::Greater]);
-        assert_ok!(comparison | "1 >= 2" => vec![Const(1.), Const(2.), OpCode::GreaterEqual]);
-        assert_ok!(comparison | "1 < 2" => vec![Const(1.), Const(2.), OpCode::Less]);
-        assert_ok!(comparison | "1 <= 2" => vec![Const(1.), Const(2.), OpCode::LessEqual]);
-        assert_ok!(comparison | "1 > 2 >= 3" => vec![Const(1.), Const(2.), OpCode::Greater, Const(3.), OpCode::GreaterEqual]);
+        assert_ok!(compile | "1 > 2" => vec![Const(1.), Const(2.), OpCode::Greater]);
+        assert_ok!(compile | "1 >= 2" => vec![Const(1.), Const(2.), OpCode::GreaterEqual]);
+        assert_ok!(compile | "1 < 2" => vec![Const(1.), Const(2.), OpCode::Less]);
+        assert_ok!(compile | "1 <= 2" => vec![Const(1.), Const(2.), OpCode::LessEqual]);
+        assert_ok!(compile | "1 > 2 >= 3" => vec![Const(1.), Const(2.), OpCode::Greater, Const(3.), OpCode::GreaterEqual]);
     }
 
     #[test]
     fn test_equality() {
-        assert_ok!(equality | "1 == 2" => vec![Const(1.), Const(2.), OpCode::Equal]);
-        assert_ok!(equality | "1 != 2" => vec![Const(1.), Const(2.), OpCode::NotEqual]);
-        assert_ok!(equality | "1 == 2 != 3" => vec![Const(1.), Const(2.), OpCode::Equal, Const(3.), OpCode::NotEqual]);
+        assert_ok!(compile | "1 == 2" => vec![Const(1.), Const(2.), OpCode::Equal]);
+        assert_ok!(compile | "1 != 2" => vec![Const(1.), Const(2.), OpCode::NotEqual]);
+        assert_ok!(compile | "1 == 2 != 3" => vec![Const(1.), Const(2.), OpCode::Equal, Const(3.), OpCode::NotEqual]);
     }
 
     #[test]
