@@ -34,7 +34,13 @@ impl<'a> Scanner<'a> {
 
     fn identifier(&mut self) -> Result<Token<'a>, ExprError<'a>> {
         let (start, end) = self.take_until(|c| c.is_alphanumeric() || c == '_');
-        Ok(Identifier(self.reader.get_lexeme(start, end)))
+
+        let lexeme = self.reader.get_lexeme(start, end);
+        Ok(match lexeme {
+            "if" => If,
+            "for" => For,
+            _ => Identifier(lexeme),
+        })
     }
 
     fn number(&mut self) -> Result<Token<'a>, ExprError<'a>> {
@@ -139,6 +145,8 @@ pub enum Token<'a> {
     LessEqual,
     Number(f64),
     Identifier(&'a str),
+    If,
+    For,
 }
 
 #[derive(Debug, PartialEq)]
@@ -174,6 +182,8 @@ mod test {
             (">=", GreaterEqual),
             ("<", Less),
             ("<=", LessEqual),
+            ("if", If),
+            ("for", For),
         ];
 
         source.into_iter().for_each(|(c, b)| {
@@ -326,5 +336,23 @@ mod test {
 
         assert_eq!(scanner.advance(), Some(Ok(Identifier("café"))));
         assert_eq!(scanner.advance(), None);
+    }
+
+    #[test]
+    fn test_if_and_identifier() {
+        let source = "i if i";
+        let mut scanner = Scanner::new(source);
+        assert_eq!(scanner.advance(), Some(Ok(Identifier("i"))));
+        assert_eq!(scanner.advance(), Some(Ok(If)));
+        assert_eq!(scanner.advance(), Some(Ok(Identifier("i"))));
+    }
+
+    #[test]
+    fn test_for_and_identifier() {
+        let source = "f for e";
+        let mut scanner = Scanner::new(source);
+        assert_eq!(scanner.advance(), Some(Ok(Identifier("f"))));
+        assert_eq!(scanner.advance(), Some(Ok(For)));
+        assert_eq!(scanner.advance(), Some(Ok(Identifier("e"))));
     }
 }
