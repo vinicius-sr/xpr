@@ -146,7 +146,7 @@ where
                         None => Err(UnexpectedEnd),
                     }
                 }
-                Identifier(name) => match B::find(name) {
+                Identifier(name) => match self.blueprint.find(name) {
                     Some(info) => self.call(info),
                     None => Err(InvalidFunction(name)),
                 },
@@ -157,8 +157,35 @@ where
         Err(UnexpectedEnd)
     }
 
-    fn call(&mut self, args: MethodInfo<U>) -> Result<(), ExprError<'a>> {
-        todo!()
+    fn call(&mut self, info: MethodInfo<U>) -> Result<(), ExprError<'a>> {
+        match self.advance() {
+            Some(Ok(LeftParen)) => {}
+            Some(Ok(token)) => return Err(UnexpectedToken(token)),
+            Some(Err(e)) => return Err(e),
+            None => return Err(UnexpectedEnd),
+        }
+
+        let mut count = 0;
+
+        loop {
+            self.expr()?;
+            count += 1;
+
+            match self.advance() {
+                Some(Ok(Comma)) => {}
+                Some(Ok(RightParen)) => break,
+                Some(Ok(token)) => return Err(UnexpectedToken(token)),
+                Some(Err(e)) => return Err(e),
+                None => return Err(UnexpectedEnd),
+            }
+        }
+
+        if count != info.arity {
+            return Err(ArityMismatch(info.arity, count));
+        }
+
+        self.output.push(Call(info.id, info.arity));
+        Ok(())
     }
 }
 
@@ -285,6 +312,19 @@ mod test {
 
     #[test]
     fn test_callable() {
-        assert_ok!(compile | "sum(1.0, 2.0)" => vec![Call(MethodId::Sum, 2)]);
+        assert_ok!(compile | "sum(1.0, 2.0)" => vec![Const(1.), Const(2.), Call(MethodId::Sum, 2)]);
+        assert_ok!(compile | "read(7)" => vec![Const(7.), Call(MethodId::Read, 1)]);
+        assert_ok!(compile | "sub(sum(1.0, 2.0), 3.0)" => vec![Const(1.), Const(2.), Call(MethodId::Sum, 2), Const(3.), Call(MethodId::Sub, 2)]);
+        assert_ok!(compile | "sum(1.0, 2.0) + 3" => vec![Const(1.), Const(2.), Call(MethodId::Sum, 2), Const(3.), Add]);
+        assert_ok!(compile | "sum(1 + 2, 3 * 4)" => vec![Const(1.), Const(2.), Add, Const(3.), Const(4.), Mult, Call(MethodId::Sum, 2)]);
+    }
+
+    #[test]
+    fn test_callable_errors() {
+        assert_err!(compile | "foo(1.0)" => InvalidFunction("foo"));
+        assert_err!(compile | "sum(1.0)" => ArityMismatch(2, 1));
+        assert_err!(compile | "sum(1.0, 2.0, 3.0)" => ArityMismatch(2, 3));
+        assert_err!(compile | "sum" => UnexpectedEnd);
+        assert_err!(compile | "sum 1.0" => UnexpectedToken(Number(1.)));
     }
 }

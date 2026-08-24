@@ -1,14 +1,14 @@
 pub trait Blueprint<T> {
-    fn find(name: &str) -> Option<MethodInfo<T>>;
+    fn find(&self, name: &str) -> Option<MethodInfo<T>>;
 }
 
 pub trait Callable<T> {
-    fn call(op: T, args: &[f64]) -> f64;
+    fn call(&self, op: &T, args: &[f64]) -> f64;
 }
 
 pub struct MethodInfo<T> {
-    id: T,
-    arity: usize,
+    pub id: T,
+    pub arity: usize,
 }
 
 impl<T> MethodInfo<T> {

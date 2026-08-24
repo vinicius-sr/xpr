@@ -22,7 +22,7 @@ enum MethodId {
 }
 
 impl Blueprint<MethodId> for Math {
-    fn find(name: &str) -> Option<MethodInfo<MethodId>> {
+    fn find(&self, name: &str) -> Option<MethodInfo<MethodId>> {
         match name {
             "sum" => Some(MethodInfo::new(Sum, 2)),
             "sub" => Some(MethodInfo::new(Sub, 2)),
@@ -30,13 +30,10 @@ impl Blueprint<MethodId> for Math {
             _ => None,
         }
     }
-    // fn find(name: &str) -> Option<Vec<rgType>> {
-
-    // }
 }
 
 impl Callable<MethodId> for Math {
-    fn call(op: MethodId, args: &[f64]) -> f64 {
+    fn call(&self, op: &MethodId, args: &[f64]) -> f64 {
         match (op, args) {
             (Sum, &[l, r]) => l + r,
             (Sub, &[l, r]) => l - r,

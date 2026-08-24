@@ -159,6 +159,7 @@ pub enum ExprError<'a> {
     InvalidNumber(&'a str),
     UnexpectedToken(Token<'a>),
     InvalidFunction(&'a str),
+    ArityMismatch(usize, usize),
     UnexpectedEnd,
     InvalidStack,
     DivisionByZero,
