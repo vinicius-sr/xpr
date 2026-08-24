@@ -1,12 +1,18 @@
-pub trait Blueprint {
-    fn find(name: &str) -> Option<Vec<ArgType>>;
+pub trait Blueprint<T> {
+    fn find(name: &str) -> Option<MethodInfo<T>>;
 }
 
 pub trait Callable<T> {
-    fn call(op: T) -> f64;
+    fn call(op: T, args: &[f64]) -> f64;
 }
 
-pub enum ArgType {
-    U8,
-    F64,
+pub struct MethodInfo<T> {
+    id: T,
+    arity: usize,
+}
+
+impl<T> MethodInfo<T> {
+    pub fn new(id: T, arity: usize) -> Self {
+        Self { id, arity }
+    }
 }

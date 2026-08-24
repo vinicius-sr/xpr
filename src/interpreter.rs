@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use crate::{
@@ -11,9 +12,10 @@ use crate::{
 
 pub struct Interpreter<'a, T, U>
 where
-    T: Callable<U> + Blueprint,
+    T: Callable<U> + Blueprint<U>,
+    U: Debug,
 {
-    op_code: Vec<OpCode>,
+    op_code: Vec<OpCode<U>>,
     stack: Vec<f64>,
     ip: usize,
     callable: T,
@@ -23,9 +25,10 @@ where
 
 impl<'a, T, U> Interpreter<'a, T, U>
 where
-    T: Callable<U> + Blueprint,
+    T: Callable<U> + Blueprint<U>,
+    U: Debug,
 {
-    fn new(op_code: Vec<OpCode>, callable: T) -> Self {
+    fn new(op_code: Vec<OpCode<U>>, callable: T) -> Self {
         Self {
             op_code,
             stack: Vec::new(),
@@ -70,7 +73,7 @@ where
                     GreaterEqual => self.binary(|l, r| Ok(f64::from(l >= r)))?,
                     Less => self.binary(|l, r| Ok(f64::from(l < r)))?,
                     LessEqual => self.binary(|l, r| Ok(f64::from(l <= r)))?,
-                    Call => todo!(),
+                    Call(_, _) => todo!(),
                 },
                 None => return Ok(self.stack.pop()),
             }

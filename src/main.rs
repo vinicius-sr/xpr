@@ -7,38 +7,41 @@ mod scanner;
 use std::env;
 
 use crate::{
-    callable::{
-        ArgType::{self, *},
-        Blueprint, Callable,
-    },
+    MethodId::*,
+    callable::{Blueprint, Callable, MethodInfo},
     interpreter::Interpreter,
 };
 
 pub struct Math;
 
-enum Method {
-    Sum(f64, f64),
-    Sub(f64, f64),
-    Read(u8),
+#[derive(Debug, PartialEq)]
+enum MethodId {
+    Sum,
+    Sub,
+    Read,
 }
 
-impl Blueprint for Math {
-    fn find(name: &str) -> Option<Vec<ArgType>> {
+impl Blueprint<MethodId> for Math {
+    fn find(name: &str) -> Option<MethodInfo<MethodId>> {
         match name {
-            "sum" => Some(vec![F64, F64]),
-            "sub" => Some(vec![F64, F64]),
-            "read" => Some(vec![U8]),
+            "sum" => Some(MethodInfo::new(Sum, 2)),
+            "sub" => Some(MethodInfo::new(Sub, 2)),
+            "read" => Some(MethodInfo::new(Read, 1)),
             _ => None,
         }
     }
+    // fn find(name: &str) -> Option<Vec<rgType>> {
+
+    // }
 }
 
-impl Callable<Method> for Math {
-    fn call(op: Method) -> f64 {
-        match op {
-            Method::Sum(l, r) => l + r,
-            Method::Sub(l, r) => l - r,
-            Method::Read(i) => i as f64,
+impl Callable<MethodId> for Math {
+    fn call(op: MethodId, args: &[f64]) -> f64 {
+        match (op, args) {
+            (Sum, &[l, r]) => l + r,
+            (Sub, &[l, r]) => l - r,
+            (Read, &[l]) => l as f64,
+            _ => todo!(),
         }
     }
 }

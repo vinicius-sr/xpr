@@ -1,5 +1,5 @@
 use crate::{
-    callable::Blueprint,
+    callable::{Blueprint, MethodInfo},
     scanner::{
         ExprError::{self, *},
         Scanner,
@@ -38,19 +38,19 @@ macro_rules! binary {
     }};
 }
 
-pub struct Compiler<'a, 'b, B>
+pub struct Compiler<'a, 'b, B, U>
 where
-    B: Blueprint,
+    B: Blueprint<U>,
 {
     scanner: Scanner<'a>,
     current: Option<Token<'a>>,
-    output: Vec<OpCode>,
+    output: Vec<OpCode<U>>,
     blueprint: &'b B,
 }
 
-impl<'a, 'b, B> Compiler<'a, 'b, B>
+impl<'a, 'b, B, U> Compiler<'a, 'b, B, U>
 where
-    B: Blueprint,
+    B: Blueprint<U>,
 {
     pub fn new(source: &'a str, blueprint: &'b B) -> Self {
         Self {
@@ -68,7 +68,7 @@ where
         }
     }
 
-    pub fn compile(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
+    pub fn compile(&mut self) -> Result<Vec<OpCode<U>>, ExprError<'a>> {
         self.block()?;
 
         match self.advance() {
@@ -146,17 +146,24 @@ where
                         None => Err(UnexpectedEnd),
                     }
                 }
-                Identifier(name) => todo!(),
+                Identifier(name) => match B::find(name) {
+                    Some(info) => self.call(info),
+                    None => Err(InvalidFunction(name)),
+                },
                 _ => Err(UnexpectedToken(current)),
             };
         }
 
         Err(UnexpectedEnd)
     }
+
+    fn call(&mut self, args: MethodInfo<U>) -> Result<(), ExprError<'a>> {
+        todo!()
+    }
 }
 
 #[derive(Debug, PartialEq)]
-pub enum OpCode {
+pub enum OpCode<U> {
     Const(f64),
     Add,
     Sub,
@@ -169,13 +176,13 @@ pub enum OpCode {
     GreaterEqual,
     Less,
     LessEqual,
-    Call,
+    Call(U, usize),
 }
 
 #[cfg(test)]
 mod test {
     use crate::{
-        Math,
+        Math, MethodId,
         compiler::{
             Compiler,
             OpCode::{self, *},
@@ -186,9 +193,10 @@ mod test {
     macro_rules! assert_ok {
         ($method:ident | $source:expr => $expected:expr) => {{
             let math = Math;
+            let expected: Vec<OpCode<MethodId>> = $expected;
             let mut compiler = Compiler::new($source, &math);
             match compiler.$method() {
-                Ok(v) => assert_eq!(v, $expected),
+                Ok(v) => assert_eq!(v, expected),
                 Err(e) => panic!("{:?}", e),
             }
         }};
@@ -199,7 +207,10 @@ mod test {
             let math = Math;
             let mut compiler = Compiler::new($source, &math);
             match compiler.$method() {
-                Ok(v) => panic!("Expected err, found: {:?}", v),
+                Ok(v) => {
+                    let v: Vec<OpCode<MethodId>> = v;
+                    panic!("Expected err, found: {:?}", v)
+                }
                 Err(e) => assert_eq!(e, $expected),
             }
         }};
@@ -274,11 +285,6 @@ mod test {
 
     #[test]
     fn test_callable() {
-        // let source = "sum(1.0, 2.0)";
-        // let mut compiler = Compiler::new(source);
-        // match compiler.compiler() {
-        // Ok(v) => panic!("Expected err, found: {:?}", v),
-        // Err(e) => assert_eq!(e),
-        // }
+        assert_ok!(compile | "sum(1.0, 2.0)" => vec![Call(MethodId::Sum, 2)]);
     }
 }

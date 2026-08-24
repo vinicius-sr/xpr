@@ -158,6 +158,7 @@ pub enum ExprError<'a> {
     UnexpectedChar(char),
     InvalidNumber(&'a str),
     UnexpectedToken(Token<'a>),
+    InvalidFunction(&'a str),
     UnexpectedEnd,
     InvalidStack,
     DivisionByZero,
