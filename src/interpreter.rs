@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
+    callable::{Blueprint, Callable},
     compiler::{
         Compiler,
         OpCode::{self, *},
@@ -8,31 +9,41 @@ use crate::{
     scanner::ExprError::{self, *},
 };
 
-pub struct Interpreter<'a> {
+pub struct Interpreter<'a, T, U>
+where
+    T: Callable<U> + Blueprint,
+{
     op_code: Vec<OpCode>,
     stack: Vec<f64>,
     ip: usize,
+    callable: T,
     _phantom: PhantomData<&'a str>,
+    _phantom_ops: PhantomData<U>,
 }
 
-impl<'a> Interpreter<'a> {
-    fn new(op_code: Vec<OpCode>) -> Self {
+impl<'a, T, U> Interpreter<'a, T, U>
+where
+    T: Callable<U> + Blueprint,
+{
+    fn new(op_code: Vec<OpCode>, callable: T) -> Self {
         Self {
             op_code,
             stack: Vec::new(),
             ip: 0,
             _phantom: PhantomData,
+            _phantom_ops: PhantomData,
+            callable,
         }
     }
 
-    fn compile(source: &'a str) -> Result<Interpreter<'a>, ExprError<'a>> {
-        let mut compiler = Compiler::new(source);
+    fn compile(source: &'a str, callable: T) -> Result<Interpreter<'a, T, U>, ExprError<'a>> {
+        let mut compiler = Compiler::new(source, &callable);
         let op_code = compiler.compile()?;
-        Ok(Self::new(op_code))
+        Ok(Self::new(op_code, callable))
     }
 
-    pub fn compile_and_run(source: &'a str) -> Result<Option<f64>, ExprError<'a>> {
-        let mut interpreter = Interpreter::compile(source)?;
+    pub fn compile_and_run(source: &'a str, callable: T) -> Result<Option<f64>, ExprError<'a>> {
+        let mut interpreter = Interpreter::compile(source, callable)?;
         interpreter.run()
     }
 

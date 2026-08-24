@@ -1,7 +1,10 @@
-use crate::scanner::{
-    ExprError::{self, *},
-    Scanner,
-    Token::{self, *},
+use crate::{
+    callable::Blueprint,
+    scanner::{
+        ExprError::{self, *},
+        Scanner,
+        Token::{self, *},
+    },
 };
 
 use crate::compiler::OpCode::Equal as OpEqual;
@@ -35,18 +38,26 @@ macro_rules! binary {
     }};
 }
 
-pub struct Compiler<'a> {
+pub struct Compiler<'a, 'b, B>
+where
+    B: Blueprint,
+{
     scanner: Scanner<'a>,
     current: Option<Token<'a>>,
     output: Vec<OpCode>,
+    blueprint: &'b B,
 }
 
-impl<'a> Compiler<'a> {
-    pub fn new(source: &'a str) -> Self {
+impl<'a, 'b, B> Compiler<'a, 'b, B>
+where
+    B: Blueprint,
+{
+    pub fn new(source: &'a str, blueprint: &'b B) -> Self {
         Self {
             scanner: Scanner::new(source),
             current: None,
             output: Vec::new(),
+            blueprint,
         }
     }
 
@@ -164,19 +175,18 @@ pub enum OpCode {
 #[cfg(test)]
 mod test {
     use crate::{
+        Math,
         compiler::{
             Compiler,
             OpCode::{self, *},
         },
-        scanner::{
-            ExprError::{self, *},
-            Token::*,
-        },
+        scanner::{ExprError::*, Token::*},
     };
 
     macro_rules! assert_ok {
         ($method:ident | $source:expr => $expected:expr) => {{
-            let mut compiler = Compiler::new($source);
+            let math = Math;
+            let mut compiler = Compiler::new($source, &math);
             match compiler.$method() {
                 Ok(v) => assert_eq!(v, $expected),
                 Err(e) => panic!("{:?}", e),
@@ -186,7 +196,8 @@ mod test {
 
     macro_rules! assert_err {
         ($method:ident | $source:expr => $expected:expr) => {{
-            let mut compiler = Compiler::new($source);
+            let math = Math;
+            let mut compiler = Compiler::new($source, &math);
             match compiler.$method() {
                 Ok(v) => panic!("Expected err, found: {:?}", v),
                 Err(e) => assert_eq!(e, $expected),
@@ -259,5 +270,15 @@ mod test {
         assert_err!(compile | "1 2" => UnexpectedToken(Number(2.)));
         assert_err!(compile | "(1)(2)" => UnexpectedToken(LeftParen));
         assert_err!(compile | "1 + 2 )" => UnexpectedToken(RightParen));
+    }
+
+    #[test]
+    fn test_callable() {
+        // let source = "sum(1.0, 2.0)";
+        // let mut compiler = Compiler::new(source);
+        // match compiler.compiler() {
+        // Ok(v) => panic!("Expected err, found: {:?}", v),
+        // Err(e) => assert_eq!(e),
+        // }
     }
 }
