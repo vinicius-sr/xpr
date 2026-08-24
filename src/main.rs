@@ -2,6 +2,7 @@ mod compiler;
 mod interpreter;
 mod reader;
 mod scanner;
+mod callable;
 
 use std::env;
 

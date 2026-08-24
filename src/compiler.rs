@@ -135,6 +135,7 @@ impl<'a> Compiler<'a> {
                         None => Err(UnexpectedEnd),
                     }
                 }
+                Identifier(name) => todo!(),
                 _ => Err(UnexpectedToken(current)),
             };
         }
@@ -157,6 +158,7 @@ pub enum OpCode {
     GreaterEqual,
     Less,
     LessEqual,
+    Call,
 }
 
 #[cfg(test)]

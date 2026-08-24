@@ -59,6 +59,7 @@ impl<'a> Interpreter<'a> {
                     GreaterEqual => self.binary(|l, r| Ok(f64::from(l >= r)))?,
                     Less => self.binary(|l, r| Ok(f64::from(l < r)))?,
                     LessEqual => self.binary(|l, r| Ok(f64::from(l <= r)))?,
+                    Call => todo!(),
                 },
                 None => return Ok(self.stack.pop()),
             }
