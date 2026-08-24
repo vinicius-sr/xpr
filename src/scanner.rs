@@ -68,6 +68,8 @@ impl<'a> Scanner<'a> {
                 ';' => Ok(Semicolon),
                 '*' => Ok(Star),
                 '/' => Ok(Slash),
+                '{' => Ok(LeftBrace),
+                '}' => Ok(RightBrace),
                 '=' => {
                     if self.reader.peek() == Some('=') {
                         self.reader.advance();
@@ -147,6 +149,8 @@ pub enum Token<'a> {
     Identifier(&'a str),
     If,
     For,
+    LeftBrace,
+    RightBrace,
 }
 
 #[derive(Debug, PartialEq)]
@@ -184,6 +188,8 @@ mod test {
             ("<=", LessEqual),
             ("if", If),
             ("for", For),
+            ("{", LeftBrace),
+            ("}", RightBrace),
         ];
 
         source.into_iter().for_each(|(c, b)| {

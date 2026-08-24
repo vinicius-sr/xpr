@@ -4,11 +4,11 @@ use crate::scanner::{
     Token::{self, *},
 };
 
+use crate::compiler::OpCode::Equal as OpEqual;
 use crate::compiler::OpCode::Greater as OpGreater;
 use crate::compiler::OpCode::GreaterEqual as OpGreaterEqual;
 use crate::compiler::OpCode::Less as OpLess;
 use crate::compiler::OpCode::LessEqual as OpLessEqual;
-use crate::compiler::OpCode::Equal as OpEqual;
 use crate::compiler::OpCode::NotEqual as OpNotEqual;
 use crate::compiler::OpCode::*;
 
@@ -58,7 +58,7 @@ impl<'a> Compiler<'a> {
     }
 
     pub fn compile(&mut self) -> Result<Vec<OpCode>, ExprError<'a>> {
-        self.expr()?;
+        self.block()?;
 
         match self.advance() {
             Some(Ok(token)) => Err(UnexpectedToken(token)),
@@ -71,18 +71,23 @@ impl<'a> Compiler<'a> {
         self.equality()
     }
 
+    fn block(&mut self) -> Result<(), ExprError<'a>> {
+        match self.advance() {
+            Some(Ok(LeftBrace)) => todo!("Block instructions are not implemented yet."),
+            Some(c) => {
+                self.current = Some(c?);
+                self.expr()
+            }
+            None => Err(UnexpectedEnd),
+        }
+    }
+
     fn equality(&mut self) -> Result<(), ExprError<'a>> {
-        binary!(self, comparison |
-            Token::EqualEqual => OpEqual, 
-            Token::NotEqual => OpNotEqual)
+        binary!(self, comparison | Token::EqualEqual => OpEqual,  Token::NotEqual => OpNotEqual)
     }
 
     fn comparison(&mut self) -> Result<(), ExprError<'a>> {
-        binary!(self, term |
-            Token::Greater => OpGreater, 
-            Token::GreaterEqual => OpGreaterEqual,
-            Token::Less => OpLess,
-            Token::LessEqual => OpLessEqual)
+        binary!(self, term | Token::Greater => OpGreater, Token::GreaterEqual => OpGreaterEqual, Token::Less => OpLess, Token::LessEqual => OpLessEqual)
     }
 
     fn term(&mut self) -> Result<(), ExprError<'a>> {
@@ -151,7 +156,7 @@ pub enum OpCode {
     Greater,
     GreaterEqual,
     Less,
-    LessEqual
+    LessEqual,
 }
 
 #[cfg(test)]
