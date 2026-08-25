@@ -1,32 +1,22 @@
-mod callable;
-mod compiler;
-mod interpreter;
-mod reader;
-mod scanner;
-
 use std::env;
 
-use crate::{
-    MethodId::*,
-    callable::{Blueprint, Callable, MethodInfo},
-    interpreter::Interpreter,
-};
+use xpr::{Blueprint, Callable, Interpreter, MethodInfo};
 
-pub struct Math;
-
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 enum MethodId {
     Sum,
     Sub,
-    Read,
+    Foo,
 }
+
+struct Math;
 
 impl Blueprint<MethodId> for Math {
     fn find(&self, name: &str) -> Option<MethodInfo<MethodId>> {
         match name {
-            "sum" => Some(MethodInfo::new(Sum, 2)),
-            "sub" => Some(MethodInfo::new(Sub, 2)),
-            "read" => Some(MethodInfo::new(Read, 1)),
+            "sum" => Some(MethodInfo::new(MethodId::Sum, 2)),
+            "sub" => Some(MethodInfo::new(MethodId::Sub, 2)),
+            "foo" => Some(MethodInfo::new(MethodId::Foo, 1)),
             _ => None,
         }
     }
@@ -35,9 +25,9 @@ impl Blueprint<MethodId> for Math {
 impl Callable<MethodId> for Math {
     fn call(&self, op: &MethodId, args: &[f64]) -> f64 {
         match (op, args) {
-            (Sum, &[l, r]) => l + r,
-            (Sub, &[l, r]) => l - r,
-            (Read, &[l]) => l as f64,
+            (MethodId::Sum, &[l, r]) => l + r,
+            (MethodId::Sub, &[l, r]) => l - r,
+            (MethodId::Foo, &[l]) => l as f64,
             _ => todo!(),
         }
     }
@@ -50,8 +40,7 @@ fn main() {
             println!("Received: {}", source);
 
             match Interpreter::compile_and_run(source.as_str(), math) {
-                Ok(Some(v)) => println!("Response: {}", v),
-                Ok(None) => println!("No result"),
+                Ok(v) => println!("Response: {}", v),
                 Err(e) => println!("{:?}", e),
             }
         }

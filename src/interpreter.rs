@@ -39,19 +39,21 @@ where
         }
     }
 
-    fn compile(source: &'a str, callable: T) -> Result<Interpreter<'a, T, U>, ExprError<'a>> {
+    /// Compile an expression once so it can be run repeatedly.
+    pub fn compile(source: &'a str, callable: T) -> Result<Interpreter<'a, T, U>, ExprError<'a>> {
         let mut compiler = Compiler::new(source, &callable);
         let op_code = compiler.compile()?;
         Ok(Self::new(op_code, callable))
     }
 
-    pub fn compile_and_run(source: &'a str, callable: T) -> Result<Option<f64>, ExprError<'a>> {
-        let mut interpreter = Interpreter::compile(source, callable)?;
+    /// Compile and run an expression in one step.
+    pub fn compile_and_run(source: &'a str, callable: T) -> Result<f64, ExprError<'a>> {
+        let mut interpreter = Self::compile(source, callable)?;
         interpreter.run()
     }
 
-    pub fn run(&mut self) -> Result<Option<f64>, ExprError<'a>> {
-        // println!("{:?}", self.op_code);
+    /// Run the compiled program and return its value.
+    pub fn run(&mut self) -> Result<f64, ExprError<'a>> {
         loop {
             match self.op_code.get(self.ip) {
                 Some(op_code) => match op_code {
@@ -83,7 +85,7 @@ where
                         self.stack.push(result);
                     }
                 },
-                None => return Ok(self.stack.pop()),
+                None => return self.stack.pop().ok_or(InvalidStack),
             }
 
             self.ip += 1;
@@ -108,15 +110,15 @@ where
 #[cfg(test)]
 mod test {
     use crate::{
-        Math,
         interpreter::Interpreter,
+        math::Math,
         scanner::ExprError::*,
     };
 
     macro_rules! assert_ok {
         ($source:expr => $expected:expr) => {{
             match Interpreter::compile_and_run($source, Math) {
-                Ok(v) => assert_eq!(v, Some($expected)),
+                Ok(v) => assert_eq!(v, $expected),
                 Err(e) => panic!("Expected ok, found: {:?}", e),
             }
         }};
@@ -154,45 +156,45 @@ mod test {
     fn test_calls() {
         assert_ok!("sum(1.0, 2.0)" => 3.);
         assert_ok!("sub(5.0, 2.0)" => 3.);
-        assert_ok!("read(7)" => 7.);
+        assert_ok!("foo(7)" => 7.);
         assert_ok!("sub(sum(1.0, 2.0), 0.5)" => 2.5);
         assert_ok!("sum(1.0, 2.0) * 2" => 6.);
     }
 
     #[test]
     fn test_complex_calls() {
-        assert_ok!("sum(sub(10.0, 2.5), read(3))" => 10.5);
-        assert_ok!("sub(read(10), sum(1.0, 2.0))" => 7.);
-        assert_ok!("sum(1.0, 2.0) * sub(4.0, 1.0) + read(1)" => 10.);
+        assert_ok!("sum(sub(10.0, 2.5), foo(3))" => 10.5);
+        assert_ok!("sub(foo(10), sum(1.0, 2.0))" => 7.);
+        assert_ok!("sum(1.0, 2.0) * sub(4.0, 1.0) + foo(1)" => 10.);
         assert_ok!("2 * sum(1.0, 2.0) - sub(5.0, 2.0)" => 3.);
         assert_ok!("sum(1.0, 2.0) / sub(4.0, 1.0)" => 1.);
-        assert_ok!("(sum(1.0, 2.0)) + (read(4))" => 7.);
+        assert_ok!("(sum(1.0, 2.0)) + (foo(4))" => 7.);
     }
 
     #[test]
     fn test_calls_in_comparisons() {
         assert_ok!("sum(1.0, 2.0) > 2.5" => 1.);
-        assert_ok!("sub(read(10), sum(1.0, 2.0)) < 8." => 1.);
+        assert_ok!("sub(foo(10), sum(1.0, 2.0)) < 8." => 1.);
         assert_ok!("sub(sum(1.0, 2.0), 3.0) == 0.0" => 1.);
-        assert_ok!("sum(1.0, 2.0) != read(3)" => 0.);
-        assert_ok!("read(5) >= sub(7.0, 2.0)" => 1.);
+        assert_ok!("sum(1.0, 2.0) != foo(3)" => 0.);
+        assert_ok!("foo(5) >= sub(7.0, 2.0)" => 1.);
     }
 
     #[test]
     fn test_expressions_as_arguments() {
         assert_ok!("sum(3 / 8 + 12 * 8, sub(4., 6 / 7))" => 3. / 8. + 12. * 8. + (4. - 6. / 7.));
         assert_ok!("sum(3 / 4 + 12 * 8, sub(4., 6 / 8))" => 100.);
-        assert_ok!("sub(sum(1 + 2, 3 * 4), read(10))" => 5.);
+        assert_ok!("sub(sum(1 + 2, 3 * 4), foo(10))" => 5.);
         assert_ok!("sum(1 / 2 + 1 / 4, sub(3 / 4, 1 / 8))" => 1.375);
         assert_ok!("sub(10 - 2 / 4, 3 * 2 + 1)" => 2.5);
-        assert_ok!("sum(sub(read(20), sum(1 + 1, 2)), 3 / 4)" => 16.75);
-        assert_ok!("read(sum(1, 2))" => 3.);
+        assert_ok!("sum(sub(foo(20), sum(1 + 1, 2)), 3 / 4)" => 16.75);
+        assert_ok!("foo(sum(1, 2))" => 3.);
     }
 
     #[test]
     fn test_errors() {
         assert_err!("1 / 0" => DivisionByZero);
-        assert_err!("foo(1.0)" => InvalidFunction("foo"));
+        assert_err!("bar(1.0)" => InvalidFunction("bar"));
         assert_err!("sum(1.0)" => ArityMismatch(2, 1));
         assert_err!("sub(sum(1.0, 2.0))" => ArityMismatch(2, 1));
     }

@@ -209,11 +209,11 @@ pub enum OpCode<U> {
 #[cfg(test)]
 mod test {
     use crate::{
-        Math, MethodId,
         compiler::{
             Compiler,
             OpCode::{self, *},
         },
+        math::{Math, MethodId},
         scanner::{ExprError::*, Token::*},
     };
 
@@ -313,7 +313,7 @@ mod test {
     #[test]
     fn test_callable() {
         assert_ok!(compile | "sum(1.0, 2.0)" => vec![Const(1.), Const(2.), Call(MethodId::Sum, 2)]);
-        assert_ok!(compile | "read(7)" => vec![Const(7.), Call(MethodId::Read, 1)]);
+        assert_ok!(compile | "foo(7)" => vec![Const(7.), Call(MethodId::Foo, 1)]);
         assert_ok!(compile | "sub(sum(1.0, 2.0), 3.0)" => vec![Const(1.), Const(2.), Call(MethodId::Sum, 2), Const(3.), Call(MethodId::Sub, 2)]);
         assert_ok!(compile | "sum(1.0, 2.0) + 3" => vec![Const(1.), Const(2.), Call(MethodId::Sum, 2), Const(3.), Add]);
         assert_ok!(compile | "sum(1 + 2, 3 * 4)" => vec![Const(1.), Const(2.), Add, Const(3.), Const(4.), Mult, Call(MethodId::Sum, 2)]);
@@ -321,7 +321,7 @@ mod test {
 
     #[test]
     fn test_callable_errors() {
-        assert_err!(compile | "foo(1.0)" => InvalidFunction("foo"));
+        assert_err!(compile | "bar(1.0)" => InvalidFunction("bar"));
         assert_err!(compile | "sum(1.0)" => ArityMismatch(2, 1));
         assert_err!(compile | "sum(1.0, 2.0, 3.0)" => ArityMismatch(2, 3));
         assert_err!(compile | "sum" => UnexpectedEnd);
