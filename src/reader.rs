@@ -110,7 +110,7 @@ mod test {
         assert_eq!(reader.index(), 24);
 
         reader.advance();
-        assert!(matches!(reader.advance(), None));
+        assert!(reader.advance().is_none());
         assert_eq!(reader.index(), 25);
     }
 }

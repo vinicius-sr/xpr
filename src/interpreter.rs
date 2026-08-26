@@ -53,7 +53,12 @@ where
     }
 
     /// Run the compiled program and return its value.
+    ///
+    /// The machine state is reset before each run, so a compiled interpreter
+    /// can be re-executed any number of times.
     pub fn run(&mut self) -> Result<f64, ExprError<'a>> {
+        self.reset();
+
         loop {
             match self.op_code.get(self.ip) {
                 Some(op_code) => match op_code {
@@ -90,6 +95,13 @@ where
 
             self.ip += 1;
         }
+    }
+
+    /// Clear the value stack and rewind the instruction pointer so the program
+    /// can be run again from the beginning.
+    pub fn reset(&mut self) {
+        self.stack.clear();
+        self.ip = 0;
     }
 
     fn binary<F>(&mut self, action: F) -> Result<(), ExprError<'a>>
@@ -189,6 +201,29 @@ mod test {
         assert_ok!("sub(10 - 2 / 4, 3 * 2 + 1)" => 2.5);
         assert_ok!("sum(sub(foo(20), sum(1 + 1, 2)), 3 / 4)" => 16.75);
         assert_ok!("foo(sum(1, 2))" => 3.);
+    }
+
+    #[test]
+    fn test_compile_once_run_many_times() {
+        let mut interpreter = Interpreter::compile("sum(1.0, 2.0) * 3", Math).unwrap();
+        for _ in 0..5 {
+            assert_eq!(interpreter.run().unwrap(), 9.0);
+        }
+    }
+
+    #[test]
+    fn test_reset_rewinds_machine() {
+        let mut interpreter = Interpreter::compile("1 + 2", Math).unwrap();
+        assert_eq!(interpreter.run().unwrap(), 3.0);
+        interpreter.reset();
+        assert_eq!(interpreter.run().unwrap(), 3.0);
+    }
+
+    #[test]
+    fn test_run_after_failed_run_starts_clean() {
+        let mut interpreter = Interpreter::compile("1 / 0", Math).unwrap();
+        assert_eq!(interpreter.run(), Err(DivisionByZero));
+        assert_eq!(interpreter.run(), Err(DivisionByZero));
     }
 
     #[test]

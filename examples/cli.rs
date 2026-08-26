@@ -27,7 +27,7 @@ impl Callable<MethodId> for Math {
         match (op, args) {
             (MethodId::Sum, &[l, r]) => l + r,
             (MethodId::Sub, &[l, r]) => l - r,
-            (MethodId::Foo, &[l]) => l as f64,
+            (MethodId::Foo, &[l]) => l,
             _ => todo!(),
         }
     }
