@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use crate::{
-    callable::{Blueprint, Callable},
+    callable::{Callable, MethodInfo},
     compiler::{
         Compiler,
         OpCode::{self, *},
@@ -10,53 +10,59 @@ use crate::{
     scanner::ExprError::{self, *},
 };
 
-pub struct Interpreter<'a, T, U>
+pub struct Interpreter<'a, U>
 where
-    T: Callable<U> + Blueprint<U>,
     U: Debug,
 {
     op_code: Vec<OpCode<U>>,
     stack: Vec<f64>,
     ip: usize,
-    callable: T,
     _phantom: PhantomData<&'a str>,
     _phantom_ops: PhantomData<U>,
 }
 
-impl<'a, T, U> Interpreter<'a, T, U>
+impl<'a, U> Interpreter<'a, U>
 where
-    T: Callable<U> + Blueprint<U>,
     U: Debug,
 {
-    fn new(op_code: Vec<OpCode<U>>, callable: T) -> Self {
+    fn new(op_code: Vec<OpCode<U>>) -> Self {
         Self {
             op_code,
             stack: Vec::new(),
             ip: 0,
             _phantom: PhantomData,
             _phantom_ops: PhantomData,
-            callable,
         }
     }
 
     /// Compile an expression once so it can be run repeatedly.
-    pub fn compile(source: &'a str, callable: T) -> Result<Interpreter<'a, T, U>, ExprError<'a>> {
-        let mut compiler = Compiler::new(source, &callable);
+    pub fn compile<F>(source: &'a str, find: F) -> Result<Interpreter<'a, U>, ExprError<'a>>
+    where
+        F: Fn(&str) -> Option<MethodInfo<U>>,
+    {
+        let mut compiler = Compiler::new(source, find);
         let op_code = compiler.compile()?;
-        Ok(Self::new(op_code, callable))
+        Ok(Self::new(op_code))
     }
 
     /// Compile and run an expression in one step.
-    pub fn compile_and_run(source: &'a str, callable: T) -> Result<f64, ExprError<'a>> {
-        let mut interpreter = Self::compile(source, callable)?;
-        interpreter.run()
+    pub fn compile_and_run<F, T>(source: &'a str, find: F, callable: &T) -> Result<f64, ExprError<'a>>
+    where
+        F: Fn(&str) -> Option<MethodInfo<U>>,
+        T: Callable<U>,
+    {
+        let mut interpreter = Self::compile(source, find)?;
+        interpreter.run(callable)
     }
 
     /// Run the compiled program and return its value.
     ///
     /// The machine state is reset before each run, so a compiled interpreter
     /// can be re-executed any number of times.
-    pub fn run(&mut self) -> Result<f64, ExprError<'a>> {
+    pub fn run<T>(&mut self, callable: &T) -> Result<f64, ExprError<'a>>
+    where
+        T: Callable<U>,
+    {
         self.reset();
 
         loop {
@@ -85,7 +91,7 @@ where
                         if len < *arity {
                             return Err(InvalidStack);
                         }
-                        let result = self.callable.call(id, &self.stack[len - *arity..]);
+                        let result = callable.call(id, &self.stack[len - *arity..]);
                         self.stack.truncate(len - *arity);
                         self.stack.push(result);
                     }
@@ -129,7 +135,7 @@ mod test {
 
     macro_rules! assert_ok {
         ($source:expr => $expected:expr) => {{
-            match Interpreter::compile_and_run($source, Math) {
+            match Interpreter::compile_and_run($source, Math::find, &Math) {
                 Ok(v) => assert_eq!(v, $expected),
                 Err(e) => panic!("Expected ok, found: {:?}", e),
             }
@@ -138,7 +144,7 @@ mod test {
 
     macro_rules! assert_err {
         ($source:expr => $expected:expr) => {{
-            match Interpreter::compile_and_run($source, Math) {
+            match Interpreter::compile_and_run($source, Math::find, &Math) {
                 Ok(v) => panic!("Expected err, found: {:?}", v),
                 Err(e) => assert_eq!(e, $expected),
             }
@@ -205,25 +211,25 @@ mod test {
 
     #[test]
     fn test_compile_once_run_many_times() {
-        let mut interpreter = Interpreter::compile("sum(1.0, 2.0) * 3", Math).unwrap();
+        let mut interpreter = Interpreter::compile("sum(1.0, 2.0) * 3", Math::find).unwrap();
         for _ in 0..5 {
-            assert_eq!(interpreter.run().unwrap(), 9.0);
+            assert_eq!(interpreter.run(&Math).unwrap(), 9.0);
         }
     }
 
     #[test]
     fn test_reset_rewinds_machine() {
-        let mut interpreter = Interpreter::compile("1 + 2", Math).unwrap();
-        assert_eq!(interpreter.run().unwrap(), 3.0);
+        let mut interpreter = Interpreter::compile("1 + 2", Math::find).unwrap();
+        assert_eq!(interpreter.run(&Math).unwrap(), 3.0);
         interpreter.reset();
-        assert_eq!(interpreter.run().unwrap(), 3.0);
+        assert_eq!(interpreter.run(&Math).unwrap(), 3.0);
     }
 
     #[test]
     fn test_run_after_failed_run_starts_clean() {
-        let mut interpreter = Interpreter::compile("1 / 0", Math).unwrap();
-        assert_eq!(interpreter.run(), Err(DivisionByZero));
-        assert_eq!(interpreter.run(), Err(DivisionByZero));
+        let mut interpreter = Interpreter::compile("1 / 0", Math::find).unwrap();
+        assert_eq!(interpreter.run(&Math), Err(DivisionByZero));
+        assert_eq!(interpreter.run(&Math), Err(DivisionByZero));
     }
 
     #[test]

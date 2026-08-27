@@ -7,7 +7,7 @@
 //! # Example
 //!
 //! ```
-//! use xpr::{Blueprint, Callable, Interpreter, MethodInfo};
+//! use xpr::{Callable, Interpreter, MethodInfo};
 //!
 //! #[derive(Debug)]
 //! enum Id {
@@ -16,8 +16,8 @@
 //!
 //! struct Math;
 //!
-//! impl Blueprint<Id> for Math {
-//!     fn find(&self, name: &str) -> Option<MethodInfo<Id>> {
+//! impl Math {
+//!     fn find(name: &str) -> Option<MethodInfo<Id>> {
 //!         match name {
 //!             "sum" => Some(MethodInfo::new(Id::Sum, 2)),
 //!             _ => None,
@@ -34,7 +34,7 @@
 //!     }
 //! }
 //!
-//! let value = Interpreter::compile_and_run("sum(1.0, 2.0) * 3", Math).unwrap();
+//! let value = Interpreter::compile_and_run("sum(1.0, 2.0) * 3", Math::find, &Math).unwrap();
 //! assert_eq!(value, 9.0);
 //! ```
 
@@ -44,13 +44,13 @@ mod reader;
 mod scanner;
 pub mod interpreter;
 
-pub use callable::{Blueprint, Callable, MethodInfo};
+pub use callable::{Callable, MethodInfo};
 pub use interpreter::Interpreter;
 pub use scanner::{ExprError, Token};
 
 #[cfg(test)]
 mod math {
-    use crate::callable::{Blueprint, Callable, MethodInfo};
+    use crate::callable::{Callable, MethodInfo};
 
     #[derive(Debug, PartialEq)]
     pub enum MethodId {
@@ -61,8 +61,8 @@ mod math {
 
     pub struct Math;
 
-    impl Blueprint<MethodId> for Math {
-        fn find(&self, name: &str) -> Option<MethodInfo<MethodId>> {
+    impl Math {
+        pub fn find(name: &str) -> Option<MethodInfo<MethodId>> {
             match name {
                 "sum" => Some(MethodInfo::new(MethodId::Sum, 2)),
                 "sub" => Some(MethodInfo::new(MethodId::Sub, 2)),

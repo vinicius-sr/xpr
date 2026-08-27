@@ -1,6 +1,6 @@
 use std::env;
 
-use xpr::{Blueprint, Callable, Interpreter, MethodInfo};
+use xpr::{Callable, Interpreter, MethodInfo};
 
 #[derive(Debug)]
 enum MethodId {
@@ -11,8 +11,8 @@ enum MethodId {
 
 struct Math;
 
-impl Blueprint<MethodId> for Math {
-    fn find(&self, name: &str) -> Option<MethodInfo<MethodId>> {
+impl Math {
+    fn find(name: &str) -> Option<MethodInfo<MethodId>> {
         match name {
             "sum" => Some(MethodInfo::new(MethodId::Sum, 2)),
             "sub" => Some(MethodInfo::new(MethodId::Sub, 2)),
@@ -39,7 +39,7 @@ fn main() {
         Some(source) => {
             println!("Received: {}", source);
 
-            match Interpreter::compile_and_run(source.as_str(), math) {
+            match Interpreter::compile_and_run(source.as_str(), Math::find, &math) {
                 Ok(v) => println!("Response: {}", v),
                 Err(e) => println!("{:?}", e),
             }

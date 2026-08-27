@@ -1,5 +1,5 @@
 use crate::{
-    callable::{Blueprint, MethodInfo},
+    callable::MethodInfo,
     scanner::{
         ExprError::{self, *},
         Scanner,
@@ -38,26 +38,26 @@ macro_rules! binary {
     }};
 }
 
-pub struct Compiler<'a, 'b, B, U>
+pub struct Compiler<'a, F, U>
 where
-    B: Blueprint<U>,
+    F: Fn(&str) -> Option<MethodInfo<U>>,
 {
     scanner: Scanner<'a>,
     current: Option<Token<'a>>,
     output: Vec<OpCode<U>>,
-    blueprint: &'b B,
+    find: F,
 }
 
-impl<'a, 'b, B, U> Compiler<'a, 'b, B, U>
+impl<'a, F, U> Compiler<'a, F, U>
 where
-    B: Blueprint<U>,
+    F: Fn(&str) -> Option<MethodInfo<U>>,
 {
-    pub fn new(source: &'a str, blueprint: &'b B) -> Self {
+    pub fn new(source: &'a str, find: F) -> Self {
         Self {
             scanner: Scanner::new(source),
             current: None,
             output: Vec::new(),
-            blueprint,
+            find,
         }
     }
 
@@ -146,7 +146,7 @@ where
                         None => Err(UnexpectedEnd),
                     }
                 }
-                Identifier(name) => match self.blueprint.find(name) {
+                Identifier(name) => match (self.find)(name) {
                     Some(info) => self.call(info),
                     None => Err(InvalidFunction(name)),
                 },
@@ -219,9 +219,8 @@ mod test {
 
     macro_rules! assert_ok {
         ($method:ident | $source:expr => $expected:expr) => {{
-            let math = Math;
             let expected: Vec<OpCode<MethodId>> = $expected;
-            let mut compiler = Compiler::new($source, &math);
+            let mut compiler = Compiler::new($source, Math::find);
             match compiler.$method() {
                 Ok(v) => assert_eq!(v, expected),
                 Err(e) => panic!("{:?}", e),
@@ -231,8 +230,7 @@ mod test {
 
     macro_rules! assert_err {
         ($method:ident | $source:expr => $expected:expr) => {{
-            let math = Math;
-            let mut compiler = Compiler::new($source, &math);
+            let mut compiler = Compiler::new($source, Math::find);
             match compiler.$method() {
                 Ok(v) => {
                     let v: Vec<OpCode<MethodId>> = v;
