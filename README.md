@@ -78,6 +78,19 @@ simple (one homogeneous value type).
 
 Division by zero is a runtime error.
 
+## Native functions
+
+The big win for the embedded language: expressions can call host Rust
+functions, and the boundary is deliberately simple — one `find` function that
+maps a name to a `MethodInfo` (id + arity), and one `Callable` trait whose
+`call` method receives the id and an `&[f64]` argument slice. No FFI, no code
+generation, no plugin system:
+
+    sub(sum(1.0, 2.0), 3.0)     // reaches straight into your Rust program
+
+That is the payoff of embedding — see `examples/cli.rs` for the minimal wiring
+and `examples/symbolic_regression.rs` for host calls driving a fitness loop.
+
 ## Example
 
 ```rust
@@ -93,10 +106,9 @@ where `find` maps a function name to a `MethodInfo` and `callable` implements th
 ## Roadmap
 
 - **`if`** — conditional expressions, e.g. `if x > 0 { x } else { -x }`. The natural
-  next step now that comparisons already yield a usable `1.0`/`0.0`.
+  next step now that comparisons already yield a usable `1.0`/`0.0` and `!x`
+  yields the negated condition.
 - **`for`** — loops, to grow from single expressions into small programs.
-- **Native functions** — call host Rust functions from an expression, so the
-  embedded language can reach real functionality (the payoff of embedding it).
 
 ## License
 
