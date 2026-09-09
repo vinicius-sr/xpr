@@ -113,9 +113,14 @@ where
         if let Some(current) = self.advance() {
             let current = current?;
             match current {
-                Minus | Bang => {
+                Minus => {
                     self.primary()?;
                     self.output.push(Negate);
+                    Ok(())
+                }
+                Bang => {
+                    self.primary()?;
+                    self.output.push(Not);
                     Ok(())
                 }
                 _ => {
@@ -197,6 +202,7 @@ pub enum OpCode<U> {
     Mult,
     Div,
     Negate,
+    Not,
     Equal,
     NotEqual,
     Greater,
@@ -259,8 +265,9 @@ mod test {
     #[test]
     fn test_unary() {
         assert_ok!(compile | "-2" => vec![Const(2.), Negate]);
-        assert_ok!(compile | "!2" => vec![Const(2.), Negate]);
+        assert_ok!(compile | "!2" => vec![Const(2.), Not]);
         assert_ok!(compile | "-(2 + 3)" => vec![Const(2.), Const(3.), Add, Negate]);
+        assert_ok!(compile | "!(1 + 2)" => vec![Const(1.), Const(2.), Add, Not]);
     }
 
     #[test]

@@ -79,7 +79,8 @@ where
                             Ok(l / r)
                         }
                     })?,
-                    Negate => todo!(),
+                    Negate => self.unary(|v| -v)?,
+                    Not => self.unary(|v| f64::from(v == 0.0))?,
                     Equal => self.binary(|l, r| Ok(f64::from(l == r)))?,
                     NotEqual => self.binary(|l, r| Ok(f64::from(l != r)))?,
                     Greater => self.binary(|l, r| Ok(f64::from(l > r)))?,
@@ -108,6 +109,19 @@ where
     pub fn reset(&mut self) {
         self.stack.clear();
         self.ip = 0;
+    }
+
+    fn unary<F>(&mut self, action: F) -> Result<(), ExprError<'a>>
+    where
+        F: FnOnce(f64) -> f64,
+    {
+        match self.stack.pop() {
+            Some(value) => {
+                self.stack.push(action(value));
+                Ok(())
+            }
+            None => Err(InvalidStack),
+        }
     }
 
     fn binary<F>(&mut self, action: F) -> Result<(), ExprError<'a>>
@@ -158,6 +172,18 @@ mod test {
         assert_ok!("1 - 2 + 3" => 2.);
         assert_ok!("2 * 3 - 1" => 5.);
         assert_ok!("(1 + 2) * 3" => 9.);
+    }
+
+    #[test]
+    fn test_unary() {
+        assert_ok!("-2" => -2.);
+        assert_ok!("-(1 + 2)" => -3.);
+        assert_ok!("-sum(1.0, 2.0)" => -3.);
+        assert_ok!("!2" => 0.);
+        assert_ok!("!0" => 1.);
+        assert_ok!("!(-19)" => 0.);
+        assert_ok!("!(1 < 2)" => 0.);
+        assert_ok!("!(2 < 1)" => 1.);
     }
 
     #[test]

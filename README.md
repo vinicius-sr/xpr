@@ -62,7 +62,7 @@ and allocation-light — one growing `Vec`, no tree to build or walk.
 | Category   | Operators                          |
 |------------|------------------------------------|
 | arithmetic | `+`  `-`  `*`  `/`                 |
-| unary      | `-x`  `!x` (negation)              |
+| unary      | `-x` (negation)  `!x` (logical not: 1.0 if x is 0, else 0.0) |
 | comparison | `==`  `!=`  `>`  `>=`  `<`  `<=`   |
 | grouping   | `( ... )`                          |
 
@@ -81,10 +81,14 @@ Division by zero is a runtime error.
 ## Example
 
 ```rust
-xpr::compile_and_run("2 + 3 * 4")?;   // Ok(14.0)
-xpr::compile_and_run("(1 + 2) * 3")?; // Ok(9.0)
-xpr::compile_and_run("6 / 0");        // Err(DivisionByZero)
+let value = xpr::Interpreter::compile_and_run("2 + 3 * 4", find, &callable)?; // Ok(14.0)
+let value = xpr::Interpreter::compile_and_run("(1 + 2) * 3", find, &callable)?; // Ok(9.0)
+xpr::Interpreter::compile_and_run("6 / 0", find, &callable); // Err(DivisionByZero)
 ```
+
+where `find` maps a function name to a `MethodInfo` and `callable` implements the
+`Callable` trait — see the doc example on `xpr::Interpreter` and
+`examples/cli.rs` for a complete wiring.
 
 ## Roadmap
 
