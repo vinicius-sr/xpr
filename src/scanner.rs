@@ -47,8 +47,8 @@ impl<'a> Scanner<'a> {
         let (start, end) = self.take_until(|c| c.is_ascii_digit() || c == '.');
         let number = self.reader.get_lexeme(start, end);
         match number.parse::<f64>() {
-            Ok(e) => Ok(Number(e)),
-            Err(_) => Err(InvalidNumber(number)),
+            Ok(e) if e.is_finite() => Ok(Number(e)),
+            _ => Err(InvalidNumber(number)),
         }
     }
 
@@ -163,6 +163,8 @@ pub enum ExprError<'a> {
     UnexpectedEnd,
     InvalidStack,
     DivisionByZero,
+    NaN,
+    Infinity,
 }
 
 #[cfg(test)]
@@ -324,8 +326,14 @@ mod test {
     fn test_invalid_number_multiple_dots() {
         let source = "1.2.3";
         let mut scanner = Scanner::new(source);
-
         assert_eq!(scanner.advance(), Some(Err(InvalidNumber("1.2.3"))));
+    }
+
+    #[test]
+    fn test_number_overflow_is_invalid() {
+        let source = "9".repeat(309);
+        let mut scanner = Scanner::new(&source);
+        assert_eq!(scanner.advance(), Some(Err(InvalidNumber(&source))));
     }
 
     #[test]

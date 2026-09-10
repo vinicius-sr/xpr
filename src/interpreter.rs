@@ -46,7 +46,11 @@ where
     }
 
     /// Compile and run an expression in one step.
-    pub fn compile_and_run<F, T>(source: &'a str, find: F, callable: &T) -> Result<f64, ExprError<'a>>
+    pub fn compile_and_run<F, T>(
+        source: &'a str,
+        find: F,
+        callable: &T,
+    ) -> Result<f64, ExprError<'a>>
     where
         F: Fn(&str) -> Option<MethodInfo<U>>,
         T: Callable<U>,
@@ -94,10 +98,16 @@ where
                         }
                         let result = callable.call(id, &self.stack[len - *arity..]);
                         self.stack.truncate(len - *arity);
-                        self.stack.push(result);
+                        self.push_validated(result)?;
                     }
                 },
-                None => return self.stack.pop().ok_or(InvalidStack),
+                None => {
+                    return self
+                        .stack
+                        .pop()
+                        .ok_or(InvalidStack)
+                        .and_then(Self::ensure_finite);
+                }
             }
 
             self.ip += 1;
@@ -130,22 +140,32 @@ where
     {
         match (self.stack.pop(), self.stack.pop()) {
             (Some(r), Some(l)) => {
-                let result = action(l, r)?;
-                self.stack.push(result);
+                self.push_validated(action(l, r)?)?;
                 Ok(())
             }
             _ => Err(InvalidStack),
+        }
+    }
+
+    fn push_validated(&mut self, value: f64) -> Result<(), ExprError<'a>> {
+        self.stack.push(Self::ensure_finite(value)?);
+        Ok(())
+    }
+
+    fn ensure_finite(v: f64) -> Result<f64, ExprError<'a>> {
+        if v.is_nan() {
+            Err(NaN)
+        } else if v.is_infinite() {
+            Err(Infinity)
+        } else {
+            Ok(v)
         }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{
-        interpreter::Interpreter,
-        math::Math,
-        scanner::ExprError::*,
-    };
+    use crate::{interpreter::Interpreter, math::Math, scanner::ExprError::*};
 
     macro_rules! assert_ok {
         ($source:expr => $expected:expr) => {{
@@ -264,5 +284,21 @@ mod test {
         assert_err!("bar(1.0)" => InvalidFunction("bar"));
         assert_err!("sum(1.0)" => ArityMismatch(2, 1));
         assert_err!("sub(sum(1.0, 2.0))" => ArityMismatch(2, 1));
+    }
+
+    #[test]
+    fn test_non_finite_values() {
+        // A literal that does not fit in an f64 is rejected at compile time.
+        let big = "9".repeat(309);
+        assert_err!(&big => InvalidNumber(&big));
+        // Overflow from an arithmetic operation is a runtime error.
+        assert_err!(&format!("{} * 10", "9".repeat(308)) => Infinity);
+        assert_err!(&format!("{} / 0.1", "9".repeat(308)) => Infinity);
+        // Callables may return non-finite values.
+        assert_err!("nan(1)" => NaN);
+        assert_err!("inf(1)" => Infinity);
+        // Underflow to zero is fine, not an error.
+        let tiny = format!("0.{}1", "0".repeat(199));
+        assert_ok!(&format!("{tiny} * {tiny}") => 0.);
     }
 }

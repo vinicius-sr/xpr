@@ -76,7 +76,10 @@ it produces a number — `1.0` for true, `0.0` for false — just like C's relat
 operators yield an `int` of `0` or `1`. This keeps the stack machine trivially
 simple (one homogeneous value type).
 
-Division by zero is a runtime error.
+Division by zero is a runtime error, and so is any value that becomes `NaN` or
+infinite during evaluation — from arithmetic overflow or a callable that returns
+a non-finite value. A literal that does not fit in an `f64` is a compile error
+(`InvalidNumber`).
 
 ## Native functions
 

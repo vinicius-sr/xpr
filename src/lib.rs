@@ -40,9 +40,9 @@
 
 mod callable;
 mod compiler;
+pub mod interpreter;
 mod reader;
 mod scanner;
-pub mod interpreter;
 
 pub use callable::{Callable, MethodInfo};
 pub use interpreter::Interpreter;
@@ -57,6 +57,8 @@ mod math {
         Sum,
         Sub,
         Foo,
+        Nan,
+        Inf,
     }
 
     pub struct Math;
@@ -67,6 +69,8 @@ mod math {
                 "sum" => Some(MethodInfo::new(MethodId::Sum, 2)),
                 "sub" => Some(MethodInfo::new(MethodId::Sub, 2)),
                 "foo" => Some(MethodInfo::new(MethodId::Foo, 1)),
+                "nan" => Some(MethodInfo::new(MethodId::Nan, 1)),
+                "inf" => Some(MethodInfo::new(MethodId::Inf, 1)),
                 _ => None,
             }
         }
@@ -78,6 +82,8 @@ mod math {
                 (MethodId::Sum, &[l, r]) => l + r,
                 (MethodId::Sub, &[l, r]) => l - r,
                 (MethodId::Foo, &[l]) => l,
+                (MethodId::Nan, _) => f64::NAN,
+                (MethodId::Inf, _) => f64::INFINITY,
                 _ => todo!(),
             }
         }
